@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/shaken/openFoam7/OpenFOAM-7/src",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/fileFormats/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/thermophysicalModels/basic/lnInclude", 
+                "/home/shaken/openFoam7/OpenFOAM-7/src/transportModels",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/transportModels/compressible/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/TurbulenceModels/turbulenceModels/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/TurbulenceModels/incompressible/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/TurbulenceModels/compressible/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/finiteVolume/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/OpenFOAM/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/OSspecific/POSIX/lnInclude",
+                "/home/shaken/openFoam7/OpenFOAM-7/src/meshTools/lnInclude"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

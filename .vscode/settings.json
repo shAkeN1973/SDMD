@@ -1,0 +1,30 @@
+{
+    "files.associations": {
+        "*Dict": "OpenFOAM",
+        "*Properties": "OpenFOAM",
+        "fvSchemes": "OpenFOAM",
+        "fvSolution": "OpenFOAM",
+        "**/constant/g": "OpenFOAM",
+        "**/0/*": "OpenFOAM",
+        "STDMD.C": "cpp",
+        "stdmd.h": "c",
+        "STDMD.H": "cpp",
+        "helloworld.C": "cpp",
+        "numeric": "cpp",
+        "OFtutorial5.C": "cpp",
+        "OFtutorial3.C": "cpp",
+        "OFtutorial4.C": "cpp",
+        "Q.C": "cpp",
+        "vorticity.C": "cpp",
+        "forces.C": "cpp",
+        "fieldAverage.C": "cpp",
+        "readFields.C": "cpp",
+        "yPlus.C": "cpp",
+        "FOtest.C": "cpp",
+        "surfaceInterpolate.C": "cpp",
+        "surfaceWriter.C": "cpp",
+        "rawSurfaceWriter.C": "cpp",
+        "sampledPatch.C": "cpp",
+        "LambVectorDir.C": "cpp"
+    }
+}

@@ -1,0 +1,97 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2.2.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     8;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     pimpleFoam;
+
+startFrom       startTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+endTime         5;
+
+deltaT          1e-04;      //time step
+
+writeControl    timeStep;
+
+writeInterval   1;     
+
+purgeWrite      20;
+
+writeFormat     binary;
+
+writePrecision  6;
+
+writeCompression uncompressed;       
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable true;
+
+functions
+{
+    test
+    {
+        type            STDMD;
+        functionObjectLibs ("libSTDMD.so");
+        writeControl timeStep;
+        writeInterval 1;
+        field U;
+    }
+
+
+    // test
+    // {
+    //     type            FOtest;
+    //     functionObjectLibs ("libFOtest.so");
+    //     writeControl timeStep;
+    //     writeInterval 1;
+    //     call            7;
+    // }
+    
+    
+
+    
+
+    // forcesCoeffCube
+    // {
+    //     type forceCoeffs;
+    //     functionObjectLibs ("libforces.so");
+    //     patches (airfoil);
+    //     enabled         true;
+    //     writeControl   timeStep;
+    //     writeInterval  10;
+    //     rhoInf 		1;
+    //     magUInf		20.0;
+    //     Aref		0.0225;
+    //     lRef		0.15;
+    //     CofR 		(0 0 0);
+    //     pitchAxis	(0 0 1);
+    //     liftDir 	(0 1 0);
+    //     dragDir 	(1 0 0);
+    //     pName p;
+    //     UName U;
+    //     rho rhoInf;
+    // }
+
+
+}
+
+// ************************************************************************* //

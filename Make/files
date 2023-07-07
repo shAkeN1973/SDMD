@@ -1,0 +1,3 @@
+STDMD.C
+
+LIB = $(FOAM_LIBBIN)/libSTDMD
