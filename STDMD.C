@@ -78,7 +78,6 @@ Foam::scalar Foam::functionObjects::STDMD::L2norm(const RMatrix& z) const
     return max(SMALL, Foam::sqrt(result));
 }
 
-
 void Foam::functionObjects::STDMD::initialize(){
     Log<<"Initialize is runnging"<<endl;
     const label nComps = nComponents(fieldName_);
@@ -86,7 +85,8 @@ void Foam::functionObjects::STDMD::initialize(){
     Log<<"Components is: "<<nComps<<endl;
 
     nSnap_ = nComps*mesh_.nCells();
-
+    reduce(nSnap_,sumOp<label>());
+    
     if(nSnap_>0){
         z_ = RMatrix(nSnap_,1,Zero);
     }
@@ -111,39 +111,58 @@ Foam::label Foam::functionObjects::STDMD::nComponents(const word &fieldName){
 bool Foam::functionObjects::STDMD::getSnapshot(){
     const label nComps = nComponents(fieldName_);
     typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
+    
+    // Get U filed from each processor
     const VolFieldType& field = lookupObject<VolFieldType>(fieldName_);
     const label nField = field.size();
-    Log<<"field Size of the U vector:"<<nField<<endl;
-    direction dir;
-    dir = 0;
-   MatrixBlock<RMatrix> v(z_,nField,1,0,0);
-   v = field.component(dir);
-   Info<<"Number of rows in block v:"<<v.m()<<nl
-   <<"Number of columns in block v:"<<v.n()<<endl;
+    Log<<"field Size of the U vector from 1 processor:"<<nField<<endl;
 
-   // Write files
+    direction dir = 0;
+    MatrixBlock<RMatrix> v(z_,nField,1,0,0);
+    v = field.component(dir);  
 
-   // Create the ourput file dictionary
-   fileName outputPath_ = mesh_.time().path()/"postProcessing";
-   mkDir(outputPath_);
-    
-   //autoPtr<OFstream> outputFilePtr;
-   OFstream os
-   (
-        outputPath_/"123.raw",
+    // Gather list from openfoam field 
+    List<vectorField> listVolField(Pstream::nProcs());
+    listVolField[Pstream::myProcNo()] = field.internalField();
+    Pstream::gatherList(listVolField);
+
+    List<label> MeshNumberList(Pstream::nProcs());
+    MeshNumberList[Pstream::myProcNo()] =mesh_.C().size();
+    Pstream::gatherList(MeshNumberList);
+
+    // Get the cell centres
+    List<pointField> listMeshCentre(Pstream::nProcs());
+    listMeshCentre[Pstream::myProcNo()] = mesh_.C();
+    Pstream::gatherList(listMeshCentre);
+
+    Info<<"Mesh numer of the list:"<<MeshNumberList<<endl;
+
+    // File writer
+    fileName outputDir = mesh_.time().path()/"Postprocessing";
+    mkDir(outputDir);
+
+    OFstream os
+    (
+        outputDir/"parallel.raw",
         IOstream::ASCII,
         IOstream::currentVersion,
-        IOstream::UNCOMPRESSED 
-   );
+        IOstream::UNCOMPRESSED
+    );
 
-    os  << "This is header:"<<nl
-    <<"content of v vector"<<nl;
+    os << "This is the header of the parallel file"<<nl
+    <<"Component of vector U(x direction)"<<nl;
 
-    for(label i=0; i<nField; i++){
-        os<< v(0,i)<<nl;
-    };
-
-
+    if(Pstream::master()){
+        for(int iProc = 0; iProc  < Pstream::nProcs(); iProc ++){
+            vectorField b_ = listVolField[iProc];
+            MatrixBlock<RMatrix> c(z_,MeshNumberList[iProc],1,0,0);
+            c = b_.component(dir);
+            for(int i = 0; i < c.m();i++){
+                z_(i,0) = c(i,0);
+                os<<z_(i,0)<<nl;
+            }
+        }
+    }
 
     return false;
 }
