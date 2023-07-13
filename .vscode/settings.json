@@ -26,6 +26,7 @@
         "rawSurfaceWriter.C": "cpp",
         "sampledPatch.C": "cpp",
         "LambVectorDir.C": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "LambVector.C": "cpp"
     }
 }

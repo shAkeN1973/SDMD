@@ -120,29 +120,76 @@ bool Foam::functionObjects::STDMD::getSnapshot()
     const label nField = field.size();
     Log << "field Size of the U vector from 1 processor:" << nField << endl;
 
-    direction dir = 0;
-    MatrixBlock<RMatrix> v(z_, nField, 1, 0, 0);
-    v = field.component(dir);
+    // Assignment the U vector to matrix z_
+    for (direction dir = 0; dir < 3; dir++)
+    {
+        MatrixBlock<RMatrix> v(z_, nField, 1, 0 + dir * nField, 0);
+        v = field.component(dir);
+    }
+
+    // Set new IOobject
+    volVectorField UReAsgGeo
+    (
+        IOobject(
+            "UReAsgGeo",
+            mesh_.time().path() / "Postprocessing",
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+            ),
+        mesh_,
+        dimensionedVector("UReAsgGeo", dimensionSet(0, 1, -2, 0, 0, 0, 0), vector::zero)
+    );
+
+
+    fileName outputDir = mesh_.time().path() / "Postprocessing";
+    mkDir(outputDir);
+
+    OFstream osUReAsgGeo
+    (
+        outputDir / "UReAsgGeo.raw",
+        IOstream::ASCII,
+        IOstream::currentVersion,
+        IOstream::UNCOMPRESSED
+    );
+
+    vectorField & UReAsg = UReAsgGeo.ref();
+    for(int i = 0;i<UReAsgGeo.size();i++)
+    {
+        UReAsg[i].x() = 1;
+        UReAsg[i].y() = 2;
+        UReAsg[i].z() = 3;
+    }
+
+    vectorField UReAsgAno = UReAsgGeo.internalField();
+    for(int i = 0;i<UReAsgGeo.size();i++)
+    {
+        vector &UvectorAno = UReAsgAno[i];
+        osUReAsgGeo<<UvectorAno.x()<<" "<<UvectorAno.y()<<" "<<UvectorAno.z()<<nl;
+    }
+
+    // direction dir = 0;
+    // MatrixBlock<RMatrix> v(z_, nField, 1, 0, 0);
+    // v = field.component(dir);
 
     // Non-parallel process:
-    if (Pstream::nProcs() == 1)
+    if (!Pstream::parRun())
     {
-        volVectorField points = field.mesh().C();
-        fileName outputDir = mesh_.time().path() / "Postprocessing";
-        mkDir(outputDir);
+        // volVectorField points = field.mesh().C();
+        // fileName outputDir = mesh_.time().path() / "Postprocessing";
+        // mkDir(outputDir);
 
-        OFstream os(
-            outputDir / "parallel.raw",
-            IOstream::ASCII,
-            IOstream::currentVersion,
-            IOstream::UNCOMPRESSED
-            );
+        // OFstream osZMatrix(
+        //     outputDir / "parallelZ.raw",
+        //     IOstream::ASCII,
+        //     IOstream::currentVersion,
+        //     IOstream::UNCOMPRESSED);
 
-        for (int i = 0; i < v.m(); i++)
-        {
-            point &pt = points[i];
-            os << pt.x() << ' ' << pt.y() << ' ' << pt.z() << ' ' << v(i, 0) << nl;
-        }
+        // for (int i = 0; i < z_.m(); i++)
+        // {
+        //     point &pt = points[i];
+        //     osZMatrix << pt.x() << ' ' << pt.y() << ' ' << pt.z() << ' ' << z_(i, 0) << nl;
+        // }
     }
 
     /*=======================================================
