@@ -102,9 +102,14 @@ class STDMD
     // Name of operand field 
     const word fieldName_;
 
+    // Coordinates of central point for each cell
+    pointField centralPoint_;
+
+    // Cell number of all meshs
+    label nCells_;
+
     // Number of the field components, e.g. pressure filed 1, Velocity field 3
     label nComponents(const word& fieldName);
-
 
 // Private Member Functions
  
