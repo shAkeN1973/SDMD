@@ -96,8 +96,11 @@ class STDMD
     // G_y
     RMatrix Gy;
 
-    // Snapshot in one loop
-    RMatrix z_;
+    // Snapshot pairs (x,y)
+    RMatrix x_;
+
+    // Snapshot pairs (x,y)
+    RMatrix y_;
     
     // Name of operand field 
     const word fieldName_;
@@ -108,11 +111,11 @@ class STDMD
     // Cell number of all meshs
     label nCells_;
 
+// Private Member Functions
+
     // Number of the field components, e.g. pressure filed 1, Velocity field 3
     label nComponents(const word& fieldName);
 
-// Private Member Functions
- 
     // Return L2-norm of a given column vector
     scalar L2norm(const RMatrix& z) const;
 

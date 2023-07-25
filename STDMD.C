@@ -62,6 +62,8 @@ Foam::scalar Foam::functionObjects::STDMD::L2norm(const RMatrix &z) const
 #endif
 
     label mRows_ = z.m();
+    Info << "Rows of input matrix: " << mRows_ << endl;
+
     scalar result = Zero;
 
     // L2 norm i.e. : sqrt(sum{z(i)^2})
@@ -69,8 +71,9 @@ Foam::scalar Foam::functionObjects::STDMD::L2norm(const RMatrix &z) const
     {
         result += magSqr(z(i, 0));
     }
-    reduce(result, sumOp<scalar>());
-    // Heuristic addition to avoid very small or zero norm
+
+    // reduce(result, sumOp<scalar>());
+    //  Heuristic addition to avoid very small or zero norm
     return max(SMALL, Foam::sqrt(result));
 }
 
@@ -84,7 +87,6 @@ void Foam::functionObjects::STDMD::initialize()
 
     nCells_ = mesh_.nCells();
     reduce(nCells_, sumOp<label>());
-
     // Get velocity field reference
     const volVectorField &field = lookupObject<volVectorField>(fieldName_);
 
@@ -103,11 +105,19 @@ void Foam::functionObjects::STDMD::initialize()
         {
             if (nSnap_ > 0)
             {
-                z_ = RMatrix(nSnap_, 1, Zero);
+                x_ = RMatrix(nSnap_, 1, Zero);
+                y_ = RMatrix(nSnap_, 1, Zero);
+                Qx = RMatrix(nSnap_, 1, Zero);
+                Qy = RMatrix(nSnap_, 1, Zero);
+                A = SMatrix(1, 1, Zero);
             }
             else
             {
-                z_ = RMatrix(1, 1, Zero);
+                x_ = RMatrix(1, 1, Zero);
+                y_ = RMatrix(1, 1, Zero);
+                Qx = RMatrix(1, 1, Zero);
+                Qy = RMatrix(1, 1, Zero);
+                A = SMatrix(1, 1, Zero);
             }
             Log << "Number of elements in one Snapshots:" << nSnap_ << endl;
 
@@ -144,20 +154,22 @@ Foam::label Foam::functionObjects::STDMD::nComponents(const word &fieldName)
 bool Foam::functionObjects::STDMD::getSnapshot()
 {
     const label nComps = nComponents(fieldName_);
-    typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
+    //typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
 
     // Get size of Vector field
-    const VolFieldType &field = lookupObject<VolFieldType>(fieldName_);
+    const volVectorField &field = lookupObject<volVectorField>(fieldName_);
     const label nField = field.size();
-    Log << "field Size of the U vector from 1 processor:" << nField << endl;
+
+    Info << "field Size:"<<nField<<endl;
+    Info << "Field Name:"<< fieldName_<<endl;
 
     // Non-parallel process:
     if (!Pstream::parRun())
     {
-        // Assignment the U vector to matrix z_
+        // Assignment the U vector to matrix x_
         for (direction dir = 0; dir < 3; dir++)
         {
-            MatrixBlock<RMatrix> v(z_, nField, 1, 0 + dir * nField, 0);
+            MatrixBlock<RMatrix> v(y_, nField, 1, 0 + dir * nField, 0);
             v = field.component(dir);
         }
 
@@ -181,126 +193,49 @@ bool Foam::functionObjects::STDMD::getSnapshot()
             osNonParallel << ct.x() << " " << ct.y() << " " << ct.z() << " "
                           << Uv.x() << " " << Uv.y() << " " << Uv.z() << " " << nl;
         }
+        return true;
     }
     else // Parallel processing
     {
-        Info << "========Parallel is runnging=========" << endl;
+
         // Gather list from openfoam field
         List<vectorField> listVectorField(Pstream::nProcs());
         listVectorField[Pstream::myProcNo()] = field.internalField();
+
+        for(int i =0 ; i < Pstream::nProcs(); i++)
+        {
+            Info << listVectorField[i].size()<<endl;
+        }
+
         Pstream::gatherList(listVectorField);
+        Info << "getSnapshots out of master" << endl;
 
         if (Pstream::master())
         {
-            Info << "========Pstream::master()==========" << endl;
-            // Gather vectorField from vectorFieldList
+            //  Gather vectorField from vectorFieldList
             fileName outputDir = mesh_.time().path() / "Postprocessing";
             mkDir(outputDir);
 
+            Info << "getSnapshots inside master" << endl;
+
             const label nComps_ = nComponents(fieldName_);
 
-            // Assign velocity to snapshots matrix z_
+            // Assign velocity to snapshots matrix x_
             for (direction dir = 0; dir < nComps_; dir++)
             {
                 label mStart_ = 0;
-                Info << "Direction: " << dir << endl;
                 for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
                 {
                     vectorField &UField = listVectorField[iProc];
                     const label iProcFieldSize_ = UField.size();
-                    Info << "Size of the U of direction:" << dir << " vector from Processor: " << iProc << "is: " << iProcFieldSize_ << endl;
-                    Info << "Start adress::" << mStart_ + dir * nCells_ << endl;
-                    MatrixBlock<RMatrix> v(z_, iProcFieldSize_, 1, mStart_ + dir * nCells_, 0);
+                    MatrixBlock<RMatrix> v(y_, iProcFieldSize_, 1, mStart_ + dir * nCells_, 0);
                     v = UField.component(dir);
                     mStart_ += UField.size();
                 }
             }
-
-            // Test if z_ vector is assigned successfully
-            fileName outputDir_Test = mesh_.time().path() / "Postprocessing";
-            mkDir(outputDir_Test);
-
-            OFstream osZ_
-            (
-                outputDir_Test / "Z_U.raw",
-                IOstream::ASCII,
-                IOstream::currentVersion,
-                IOstream::UNCOMPRESSED
-            );
-
-            for (int i = 0; i < z_.m() / 3; i++)
-            {
-                osZ_ << z_(i, 0) << " " << z_(i + nCells_, 0) << " " << z_(i + 2 * nCells_, 0) << nl;
-            }
-
-            OFstream osProcessor
-            (
-                outputDir_Test / "processor_U.raw",
-                IOstream::ASCII,
-                IOstream::currentVersion,
-                IOstream::UNCOMPRESSED
-             );
-
-
-            for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
-            {
-                vectorField &UField = listVectorField[iProc];
-                for(int i = 0; i < UField.size();i++)
-                {
-                    vector &U = UField[i];
-                    osProcessor<<U.x()<<" "<<U.y()<<" "<<U.z()<<nl;
-                }
-            }
         }
+        return true;
     }
-
-    /*=======================================================
-    // Gather list from openfoam field
-    List<vectorField> listVectorField(Pstream::nProcs());
-    listVectorField[Pstream::myProcNo()] = field.internalField();
-    Pstream::gatherList(listVectorField);
-
-    List<label> MeshNumberList(Pstream::nProcs());
-    MeshNumberList[Pstream::myProcNo()] =mesh_.C().size();
-    Pstream::gatherList(MeshNumberList);
-
-    // Get the cell centres
-    List<pointField> listMeshCentre(Pstream::nProcs());
-    listMeshCentre[Pstream::myProcNo()] = mesh_.C();
-    Pstream::gatherList(listMeshCentre);
-
-    Info<<"Mesh numer of the list:"<<MeshNumberList<<endl;
-
-    // File writer
-    fileName outputDir = mesh_.time().path()/"Postprocessing";
-    mkDir(outputDir);
-
-    OFstream os
-    (
-        outputDir/"parallel.raw",
-        IOstream::ASCII,
-        IOstream::currentVersion,
-        IOstream::UNCOMPRESSED
-    );
-
-    os << "This is the header of the parallel file"<<nl
-    <<"Component of vector U(x direction)"<<nl;
-
-    if(Pstream::master()){
-        for(int iProc = 0; iProc  < Pstream::nProcs(); iProc ++){
-            vectorField b_ = listVectorField[iProc];
-            MatrixBlock<RMatrix> c(z_,MeshNumberList[iProc],1,0,0);
-            pointField& points = listMeshCentre[iProc];
-            c = b_.component(dir);
-            for(int i = 0; i < c.m();i++){
-                point& pt = points[i];
-                z_(i,0) = c(i,0);
-                os  << pt.x() << ' ' << pt.y() << ' ' << pt.z() << ' '<<z_(i,0)<<nl;
-            }
-        }
-    }
-
-    =============================================================*/
     return false;
 }
 
@@ -321,7 +256,7 @@ Foam::functionObjects::STDMD::STDMD(
       A(),
       Gx(),
       Gy(),
-      z_(),
+      x_(),
       fieldName_(dict.lookupOrDefault<word>("field", "U"))
 {
     // Read settings from dictionary files
@@ -343,7 +278,7 @@ Foam::functionObjects::STDMD::STDMD(
       A(),
       Gx(),
       Gy(),
-      z_(),
+      x_(),
       fieldName_(dict.lookupOrDefault<word>("field", "U"))
 {
     // Read settings from dictionary files
@@ -379,18 +314,46 @@ bool Foam::functionObjects::STDMD::execute()
     Log << "execute Function is running" << endl;
     Log << type() << " " << name() << " execute:" << endl;
 
+    // SDMD is processed by the master processor
+
     if (step_ == 0)
     {
         initialize();
     }
 
-    if (step_ > 0)
+    if (Pstream::master())
     {
-        Log << "Execution index:" << step_ << endl;
-        getSnapshot();
+        // Process the First Iterate
+        if (step_ == 1)
+        {
+            Info << "=======Step 1=======" << endl;
+            x_ = y_;
+            // getSnapshot();
+
+            scalar normX_ = L2norm(x_);
+            scalar normY_ = L2norm(y_);
+
+            Info << "L2 norm of x: " << normX_ << endl;
+            Info << "L2 norm of y: " << normY_ << endl;
+
+            Qx = Qx / normX_;
+            Qy = Qy / normY_;
+            A(0, 0) = normX_ * normY_;
+            Info << "First element of A:" << A(0, 0) << endl;
+            Info << "First Iteration is done" << endl;
+        }
+
+        if (step_ > 1)
+        {
+            Log << "Execution index:" << step_ << endl;
+            //  x_ = y_;
+            // getSnapshot();
+        }
+        step_++;
     }
 
-    step_++;
+    Info << "Process getSnapshot" << endl;
+    getSnapshot();
 
     return true;
 }
