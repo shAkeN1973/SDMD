@@ -111,6 +111,9 @@ class STDMD
     // Cell number of all meshs
     label nCells_;
 
+    // Number of times to reapply Gram-Schmidt
+    const label nGram_;
+
 // Private Member Functions
 
     // Number of the field components, e.g. pressure filed 1, Velocity field 3
@@ -124,6 +127,9 @@ class STDMD
 
     // Initialise the first snapshots
     void initialize();
+
+    // Classical Gram-Schmidt reorthonormalization 
+    RMatrix GSOrthonormalize(RMatrix x,RMatrix Q) const;
 
 public:
     // Runtime type information

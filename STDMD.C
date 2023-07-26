@@ -171,7 +171,6 @@ bool Foam::functionObjects::STDMD::getSnapshot()
         listVectorField[Pstream::myProcNo()] = field.internalField();
         Pstream::gatherList(listVectorField);
 
-
         if (Pstream::master())
         {
             //  Gather vectorField from vectorFieldList
@@ -232,6 +231,30 @@ bool Foam::functionObjects::STDMD::getSnapshot()
     return false;
 }
 
+// Classical Gram-Schmidt reorthonormalization
+Foam::RectangularMatrix<double_t>
+Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix x, RMatrix Q) const
+{
+    Info << "The Colmns of Q: " << Q.n() << endl;
+    RMatrix xtilde_(Q.n(), 1, Zero);
+    RMatrix ex_ = x;
+    RMatrix dx_(Q.n(), 1, Zero);
+
+    for (int i = 0; i < nGram_; i++)
+    {
+        // dx = Q^T * ex;
+        for (int col_ = 0; col_ < Q.n(); col_++)
+        {
+            for (int row_ = 0; row_ < Q.m(); row_++)
+            {
+                Info << "Q(row_ , col_): " << Q(row_, col_)
+                     << "ex_ (row_, 0): " << ex_(row_, 0) << endl;
+                dx_(col_, 0) += Q(row_, col_) * ex_(row_, 0);
+            }
+        }
+    }
+}
+
 // * * * * * * * * * Constructors  * * * * * * * * * * * * * //
 
 Foam::functionObjects::STDMD::STDMD(
@@ -250,6 +273,8 @@ Foam::functionObjects::STDMD::STDMD(
       Gx(),
       Gy(),
       x_(),
+      y_(),
+      nGram_(5),
       fieldName_(dict.lookupOrDefault<word>("field", "U"))
 {
     // Read settings from dictionary files
@@ -272,6 +297,8 @@ Foam::functionObjects::STDMD::STDMD(
       Gx(),
       Gy(),
       x_(),
+      y_(),
+      nGram_(5),
       fieldName_(dict.lookupOrDefault<word>("field", "U"))
 {
     // Read settings from dictionary files
@@ -314,14 +341,13 @@ bool Foam::functionObjects::STDMD::execute()
         initialize();
     }
 
-    if (Pstream::master())
+    // Process the First Iterate
+    if (step_ == 1)
     {
-        // Process the First Iterate
-        if (step_ == 1)
+        Info << "=======Step 1=======" << endl;
+        x_ = y_;
+        if (Pstream::master())
         {
-            Info << "=======Step 1=======" << endl;
-            x_ = y_;
-
             scalar normX_ = L2norm(x_);
             scalar normY_ = L2norm(y_);
 
@@ -329,17 +355,20 @@ bool Foam::functionObjects::STDMD::execute()
             Qy = Qy / normY_;
             A(0, 0) = normX_ * normY_;
         }
-        // Process other iterations
-        if (step_ > 1)
+        getSnapshot();
+    }
+    // Process other iterations
+    if (step_ > 1)
+    {
+        Log << "Execution index:" << step_ << endl;
+        if (Pstream::master())
         {
-            Log << "Execution index:" << step_ << endl;
             x_ = y_;
-            
         }
+        getSnapshot();
     }
 
     step_++;
-    getSnapshot();
     return true;
 }
 
