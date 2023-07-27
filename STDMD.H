@@ -131,6 +131,7 @@ class STDMD
     // Classical Gram-Schmidt reorthonormalization 
     RMatrix GSOrthonormalize(RMatrix x,RMatrix Q) const;
 
+
 public:
     // Runtime type information
     TypeName("STDMD");

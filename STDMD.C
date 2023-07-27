@@ -22,10 +22,10 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Application
-    FOtest
+    SDMD
 
 Description
-    A test file used for the function objects
+    Streaming DMD for openFOAM v7
 \*---------------------------------------------------------------------------*/
 
 #include "STDMD.H"
@@ -177,8 +177,6 @@ bool Foam::functionObjects::STDMD::getSnapshot()
             fileName outputDir = mesh_.time().path() / "Postprocessing";
             mkDir(outputDir);
 
-            Info << "getSnapshots inside master" << endl;
-
             const label nComps_ = nComponents(fieldName_);
 
             // Assign velocity to snapshots matrix x_
@@ -236,23 +234,23 @@ Foam::RectangularMatrix<double_t>
 Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix x, RMatrix Q) const
 {
     Info << "The Colmns of Q: " << Q.n() << endl;
-    RMatrix xtilde_(Q.n(), 1, Zero);
+
     RMatrix ex_ = x;
-    RMatrix dx_(Q.n(), 1, Zero);
 
     for (int i = 0; i < nGram_; i++)
     {
         // dx = Q^T * ex;
+        RMatrix dx_(Q.n(), 1, Zero);
         for (int col_ = 0; col_ < Q.n(); col_++)
         {
             for (int row_ = 0; row_ < Q.m(); row_++)
             {
-                Info << "Q(row_ , col_): " << Q(row_, col_)
-                     << "ex_ (row_, 0): " << ex_(row_, 0) << endl;
                 dx_(col_, 0) += Q(row_, col_) * ex_(row_, 0);
             }
         }
+        ex_ = ex_ - Q * dx_;
     }
+    return ex_;
 }
 
 // * * * * * * * * * Constructors  * * * * * * * * * * * * * //
@@ -274,8 +272,8 @@ Foam::functionObjects::STDMD::STDMD(
       Gy(),
       x_(),
       y_(),
-      nGram_(5),
-      fieldName_(dict.lookupOrDefault<word>("field", "U"))
+      fieldName_(dict.lookupOrDefault<word>("field", "U")),
+      nGram_(5)
 {
     // Read settings from dictionary files
     read(dict);
@@ -298,8 +296,8 @@ Foam::functionObjects::STDMD::STDMD(
       Gy(),
       x_(),
       y_(),
-      nGram_(5),
-      fieldName_(dict.lookupOrDefault<word>("field", "U"))
+      fieldName_(dict.lookupOrDefault<word>("field", "U")),
+      nGram_(5)
 {
     // Read settings from dictionary files
     read(dict);
@@ -336,38 +334,47 @@ bool Foam::functionObjects::STDMD::execute()
 
     // SDMD is processed by the master processor
 
+    Log << "Execution index:" << step_ << endl;
+
     if (step_ == 0)
     {
         initialize();
-    }
-
-    // Process the First Iterate
-    if (step_ == 1)
-    {
-        Info << "=======Step 1=======" << endl;
-        x_ = y_;
-        if (Pstream::master())
-        {
-            scalar normX_ = L2norm(x_);
-            scalar normY_ = L2norm(y_);
-
-            Qx = Qx / normX_;
-            Qy = Qy / normY_;
-            A(0, 0) = normX_ * normY_;
-        }
         getSnapshot();
     }
-    // Process other iterations
-    if (step_ > 1)
+    else
     {
-        Log << "Execution index:" << step_ << endl;
         if (Pstream::master())
         {
             x_ = y_;
         }
         getSnapshot();
-    }
 
+        // Process the First Iterate
+        if (step_ == 1)
+        {
+            Info << "=======Step 1=======" << endl;
+            if (Pstream::master())
+            {
+                scalar normX_ = L2norm(x_);
+                Info << "Norm of x_: " << normX_ << endl;
+                scalar normY_ = L2norm(y_);
+
+                Qx = x_ / normX_;
+                Qy = y_ / normY_;
+                A(0, 0) = normX_ * normY_;
+            }
+        }
+
+        // Algorithm step1
+        if (Pstream::master())
+        {
+            RMatrix ex_ = GSOrthonormalize(x_, Qx);
+            Info << "Rows of ex_:" << ex_.m() << endl;
+
+            scalar normEx_ = L2norm(ex_);
+            Info << "Norm of ex_ :" << normEx_ << endl;
+        }
+    }
     step_++;
     return true;
 }
