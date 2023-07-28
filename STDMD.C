@@ -112,7 +112,7 @@ void Foam::functionObjects::STDMD::initialize()
                 y_ = RMatrix(nSnap_, 1, Zero);
                 Qx = RMatrix(nSnap_, 1, Zero);
                 Qy = RMatrix(nSnap_, 1, Zero);
-                A = SMatrix(1, 1, Zero);
+                A = RMatrix(1, 1, Zero);
             }
             else
             {
@@ -120,7 +120,7 @@ void Foam::functionObjects::STDMD::initialize()
                 y_ = RMatrix(1, 1, Zero);
                 Qx = RMatrix(1, 1, Zero);
                 Qy = RMatrix(1, 1, Zero);
-                A = SMatrix(1, 1, Zero);
+                A = RMatrix(1, 1, Zero);
             }
 
             label iMeshBlockLen = 0; // Length of each mesh block
@@ -231,7 +231,7 @@ bool Foam::functionObjects::STDMD::getSnapshot()
 
 // Classical Gram-Schmidt reorthonormalization
 Foam::RectangularMatrix<double_t>
-Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix x, RMatrix Q) const
+Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix &x, RMatrix &Q) const
 {
     Info << "The Colmns of Q: " << Q.n() << endl;
 
@@ -251,6 +251,59 @@ Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix x, RMatrix Q) const
         ex_ = ex_ - Q * dx_;
     }
     return ex_;
+}
+
+// Expand Q, G and A based on x
+void Foam::functionObjects::STDMD::expandQx(const RMatrix &ex_, const scalar exNorm_)
+{
+    Qx.setSize(Qx.m(), Qx.n() + 1);
+    Gx.setSize(Gx.m() + 1, Gx.n() + 1);
+    A.setSize(A.m(), A.n() + 1);
+
+    MatrixBlock<RMatrix> qxExpand(Qx, Qx.m(), 1, 0, Qx.n() - 1);
+    qxExpand = ex_ / exNorm_;
+}
+
+// Expand Q, G and A based on y
+void Foam::functionObjects::STDMD::expandQy(const RMatrix &ey_, const scalar eyNorm_)
+{
+    Qy.setSize(Qx.m(), Qx.n() + 1);
+    Gy.setSize(Gx.m() + 1, Gx.n() + 1);
+    A.setSize(A.m() + 1, A.n());
+
+    MatrixBlock<RMatrix> qyExpand(Qy, Qy.m(), 1, 0, Qy.n());
+    qyExpand = ey_ / eyNorm_;
+}
+
+// Calculate xtilde
+Foam::RectangularMatrix<double_t>
+Foam::functionObjects::STDMD::calcTilde(RMatrix &Q, RMatrix &x) const
+{
+    RMatrix xtilde_(Q.n(), 1, Zero);
+    for (int col_ = 0; col_ < Q.n(); col_++)
+    {
+        for (int row_ = 0; row_ < Q.m(); row_++)
+        {
+            xtilde_(col_, 0) += Q(row_, col_) * x(row_, 0);
+        }
+    }
+    return xtilde_;
+}
+
+// Return the transpose of the matrix 
+Foam::RectangularMatrix<double_t>
+Foam::functionObjects::STDMD::transpose(const RMatrix &A) const
+{
+    RMatrix T(A.n(),A.m(),Zero);
+    for(int row_ = 0; row_ < A.m(); row_++)
+    {
+        for(int col_ = 0; col_ < A.n(); col_++)
+        {
+            T(col_,row_) = A(row_, col_);
+        }
+    }
+
+    return T;
 }
 
 // * * * * * * * * * Constructors  * * * * * * * * * * * * * //
@@ -365,14 +418,42 @@ bool Foam::functionObjects::STDMD::execute()
             }
         }
 
-        // Algorithm step1
         if (Pstream::master())
         {
+            // Algorithm step 1
+            // i.e. Gram-Schmidt reothonormalization
             RMatrix ex_ = GSOrthonormalize(x_, Qx);
-            Info << "Rows of ex_:" << ex_.m() << endl;
-
             scalar normEx_ = L2norm(ex_);
-            Info << "Norm of ex_ :" << normEx_ << endl;
+
+            RMatrix ey_ = GSOrthonormalize(y_, Qy);
+            scalar normEy_ = L2norm(ey_);
+
+            // Algorithm step 2
+            // Check basis for x_ and expand, if necessary
+            scalar normX_ = L2norm(x_);
+            Info << "Norm of x_: " << normX_ << endl;
+            scalar normY_ = L2norm(y_);
+
+            if (normEx_ / normX_ > __DBL_EPSILON__)
+            {
+                expandQx(ex_, normEx_);
+            }
+
+            if (normEy_ / normY_ > __DBL_EPSILON__)
+            {
+                expandQy(ey_, normEy_);
+            }
+            // Algorithm step 3
+            // Check if POD compression is need
+            // This step is not considered for now
+
+            // Algorithm step 4
+            // Calculate xtilde and ytilde
+            RMatrix xtilde_ = calcTilde(Qx, x_);
+            RMatrix ytilde_ = calcTilde(Qy, y_);
+
+            // Update A and Gx,Gy
+            
         }
     }
     step_++;

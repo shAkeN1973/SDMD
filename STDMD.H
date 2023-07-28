@@ -27,7 +27,7 @@ Application
 Description
     A Streaming algorithm used for the function objects
 
-    functions: 
+    functions:
         - Performing the DMD to the new snapshots
 
 Class
@@ -48,126 +48,132 @@ Class
 
 namespace Foam
 {
-namespace functionObjects
-{
+    namespace functionObjects
+    {
 
-/*---------------------------------------------------------------------------*\
-                         Class forceCoeffs Declaration
-\*---------------------------------------------------------------------------*/
+        /*---------------------------------------------------------------------------*\
+                                 Class forceCoeffs Declaration
+        \*---------------------------------------------------------------------------*/
 
-class STDMD
-:
-    public fvMeshFunctionObject,
-    public logFiles
-{
-    typedef RectangularMatrix<double_t>  RMatrix;
-    typedef SquareMatrix<double_t> SMatrix;
+        class STDMD
+            : public fvMeshFunctionObject,
+              public logFiles
+        {
+            typedef RectangularMatrix<double_t> RMatrix;
+            typedef SquareMatrix<double_t> SMatrix;
 
-// Private Data
+            // Private Data
 
-    // Protected Data
+            // Protected Data
 
-    // Number of elements in a snapshot
-    label nSnap_;
-    
-    // Number of the snapshots
-    label snapNum_;
+            // Number of elements in a snapshot
+            label nSnap_;
 
-    // Maximum allowable rank of DMD operator
-    label maxRank_;
+            // Number of the snapshots
+            label snapNum_;
 
-    // Number of pairs of snapshots processed
-    label step_;
+            // Maximum allowable rank of DMD operator
+            label maxRank_;
 
-    // Q_x, whose columns form an orthonormal basis for the image of X
-    // Eq: (1)
-    RMatrix Qx;
+            // Number of pairs of snapshots processed
+            label step_;
 
-    // Q_y, whose columns form an orthonormal basis for the image of Y
-    // Eq: (1)
-    RMatrix Qy;
+            // Q_x, whose columns form an orthonormal basis for the image of X
+            // Eq: (1)
+            RMatrix Qx;
 
-    // A, New matrix defined
-    SMatrix A;
+            // Q_y, whose columns form an orthonormal basis for the image of Y
+            // Eq: (1)
+            RMatrix Qy;
 
-    // G_x
-    RMatrix Gx;
+            // A, New matrix defined
+            RMatrix A;
 
-    // G_y
-    RMatrix Gy;
+            // G_x
+            RMatrix Gx;
 
-    // Snapshot pairs (x,y)
-    RMatrix x_;
+            // G_y
+            RMatrix Gy;
 
-    // Snapshot pairs (x,y)
-    RMatrix y_;
-    
-    // Name of operand field 
-    const word fieldName_;
+            // Snapshot pairs (x,y)
+            RMatrix x_;
 
-    // Coordinates of central point for each cell
-    pointField centralPoint_;
+            // Snapshot pairs (x,y)
+            RMatrix y_;
 
-    // Cell number of all meshs
-    label nCells_;
+            // Name of operand field
+            const word fieldName_;
 
-    // Number of times to reapply Gram-Schmidt
-    const label nGram_;
+            // Coordinates of central point for each cell
+            pointField centralPoint_;
 
-// Private Member Functions
+            // Cell number of all meshs
+            label nCells_;
 
-    // Number of the field components, e.g. pressure filed 1, Velocity field 3
-    label nComponents(const word& fieldName);
+            // Number of times to reapply Gram-Schmidt
+            const label nGram_;
 
-    // Return L2-norm of a given column vector
-    scalar L2norm(const RMatrix& z) const;
+            // Private Member Functions
 
-    // Get snapshot form the Volum field
-    bool getSnapshot();
+            // Number of the field components, e.g. pressure filed 1, Velocity field 3
+            label nComponents(const word &fieldName);
 
-    // Initialise the first snapshots
-    void initialize();
+            // Return L2-norm of a given column vector
+            scalar L2norm(const RMatrix &z) const;
 
-    // Classical Gram-Schmidt reorthonormalization 
-    RMatrix GSOrthonormalize(RMatrix x,RMatrix Q) const;
+            // Get snapshot form the Volum field
+            bool getSnapshot();
 
+            // Initialise the first snapshots
+            void initialize();
 
-public:
-    // Runtime type information
-    TypeName("STDMD");
+            // Classical Gram-Schmidt reorthonormalization
+            RMatrix GSOrthonormalize(RMatrix &x, RMatrix &Q) const;
 
-    // Constructors
-    STDMD
-    (
-        const word& name,
-        const Time& runTime,
-        const dictionary& dict
-    );
+            // Expand Qx, A, Gx
+            void expandQx(const RMatrix &ex_, const scalar exNorm_);
 
-    STDMD
-    (
-        const word& name,
-        const objectRegistry& obr,
-        const dictionary& dict
-    );
+            // Expand Qy, A, Gy 
+            void expandQy(const RMatrix &ey_, const scalar eyNorm_);
 
-    // Destructor
-    virtual ~STDMD();
+            // Calculate xtilde
+            RMatrix calcTilde(RMatrix &Q, RMatrix &x) const;
 
-    // Member Functions
+            // Return the transpose of the matrix 
+            RMatrix transpose(const RMatrix &A) const;
 
-    // Read the dict data
-    virtual bool read(const dictionary&);
-    virtual bool execute();
-    virtual bool write();
-    virtual void writeFileHeader(const label i);
+        public:
+            // Runtime type information
+            TypeName("STDMD");
 
-};
+            // Constructors
+            STDMD
+            (
+                const word &name,
+                const Time &runTime,
+                const dictionary &dict
+            );
 
-}   // End namespace functionObjects
-}   // End namespace Foam
+            STDMD
+            (
+                const word &name,
+                const objectRegistry &obr,
+                const dictionary &dict
+            );
+
+            // Destructor
+            virtual ~STDMD();
+
+            // Member Functions
+
+            // Read the dict data
+            virtual bool read(const dictionary &);
+            virtual bool execute();
+            virtual bool write();
+            virtual void writeFileHeader(const label i);
+        };
+
+    } // End namespace functionObjects
+} // End namespace Foam
 
 #endif
-
-
-
