@@ -62,7 +62,7 @@ Foam::scalar Foam::functionObjects::STDMD::L2norm(const RMatrix &z) const
 #endif
 
     label mRows_ = z.m();
-    Info << "Rows of input matrix: " << mRows_ << endl;
+    // EInfo << "Rows of input matrix: " << mRows_ << endl;
 
     scalar result = Zero;
 
@@ -112,6 +112,8 @@ void Foam::functionObjects::STDMD::initialize()
                 y_ = RMatrix(nSnap_, 1, Zero);
                 Qx = RMatrix(nSnap_, 1, Zero);
                 Qy = RMatrix(nSnap_, 1, Zero);
+                Gx = RMatrix(1, 1, Zero);
+                Gy = RMatrix(1, 1, Zero);
                 A = RMatrix(1, 1, Zero);
             }
             else
@@ -120,6 +122,8 @@ void Foam::functionObjects::STDMD::initialize()
                 y_ = RMatrix(1, 1, Zero);
                 Qx = RMatrix(1, 1, Zero);
                 Qy = RMatrix(1, 1, Zero);
+                Gx = RMatrix(1, 1, Zero);
+                Gy = RMatrix(1, 1, Zero);
                 A = RMatrix(1, 1, Zero);
             }
 
@@ -256,23 +260,32 @@ Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix &x, RMatrix &Q) const
 // Expand Q, G and A based on x
 void Foam::functionObjects::STDMD::expandQx(const RMatrix &ex_, const scalar exNorm_)
 {
+    Info << "Expand Qx" << endl;
     Qx.setSize(Qx.m(), Qx.n() + 1);
+    Info << "Expand Gx" << endl;
     Gx.setSize(Gx.m() + 1, Gx.n() + 1);
+    Info << "Expand A" << endl;
     A.setSize(A.m(), A.n() + 1);
 
     MatrixBlock<RMatrix> qxExpand(Qx, Qx.m(), 1, 0, Qx.n() - 1);
     qxExpand = ex_ / exNorm_;
+
+     Info<< "Expand X done"<<endl;
 }
 
 // Expand Q, G and A based on y
 void Foam::functionObjects::STDMD::expandQy(const RMatrix &ey_, const scalar eyNorm_)
 {
-    Qy.setSize(Qx.m(), Qx.n() + 1);
-    Gy.setSize(Gx.m() + 1, Gx.n() + 1);
+    Info << "Expand Qy" << endl;
+    Qy.setSize(Qy.m(), Qy.n() + 1);
+    Info << "Expand Gy" << endl;
+    Gy.setSize(Gy.m() + 1, Gy.n() + 1);
+    Info << "Expand A" << endl;
     A.setSize(A.m() + 1, A.n());
 
     MatrixBlock<RMatrix> qyExpand(Qy, Qy.m(), 1, 0, Qy.n());
     qyExpand = ey_ / eyNorm_;
+    Info << "Expand Y done" << endl;
 }
 
 // Calculate xtilde
@@ -290,16 +303,16 @@ Foam::functionObjects::STDMD::calcTilde(RMatrix &Q, RMatrix &x) const
     return xtilde_;
 }
 
-// Return the transpose of the matrix 
+// Return the transpose of the matrix
 Foam::RectangularMatrix<double_t>
 Foam::functionObjects::STDMD::transpose(const RMatrix &A) const
 {
-    RMatrix T(A.n(),A.m(),Zero);
-    for(int row_ = 0; row_ < A.m(); row_++)
+    RMatrix T(A.n(), A.m(), Zero);
+    for (int row_ = 0; row_ < A.m(); row_++)
     {
-        for(int col_ = 0; col_ < A.n(); col_++)
+        for (int col_ = 0; col_ < A.n(); col_++)
         {
-            T(col_,row_) = A(row_, col_);
+            T(col_, row_) = A(row_, col_);
         }
     }
 
@@ -414,6 +427,8 @@ bool Foam::functionObjects::STDMD::execute()
 
                 Qx = x_ / normX_;
                 Qy = y_ / normY_;
+                Gx(0, 0) = normX_*normX_;
+                Gy(0, 0) = normY_*normY_;
                 A(0, 0) = normX_ * normY_;
             }
         }
@@ -449,11 +464,15 @@ bool Foam::functionObjects::STDMD::execute()
 
             // Algorithm step 4
             // Calculate xtilde and ytilde
+            Info << "Caculate tilde" <<endl;
             RMatrix xtilde_ = calcTilde(Qx, x_);
             RMatrix ytilde_ = calcTilde(Qy, y_);
 
             // Update A and Gx,Gy
-            
+            Info << "Update A and Gx, Gy" <<endl;
+            A = A + ytilde_ * transpose(xtilde_);
+            Gx = Gx + xtilde_ * transpose(xtilde_);
+            Gy = Gy + ytilde_ * transpose(ytilde_);
         }
     }
     step_++;
