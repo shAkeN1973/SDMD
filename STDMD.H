@@ -142,6 +142,9 @@ namespace Foam
             // Return the transpose of the matrix 
             RMatrix transpose(const RMatrix &A) const;
 
+            // Write the specificed matrix to postProcessing/SDMD
+            void writeMatrix(const fileName &outputDir, const RMatrix &A,const fileName &matrixName) const;
+
         public:
             // Runtime type information
             TypeName("STDMD");

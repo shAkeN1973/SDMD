@@ -139,6 +139,32 @@ void Foam::functionObjects::STDMD::initialize()
                 }
                 iMeshBlockLen += listMeshCentre[iProc].size();
             }
+
+            // Write the coordinates of central points
+            fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+
+            Info << "Mesh path is:" << outputDir << endl;
+
+            mkDir(outputDir);
+            OFstream osCoordinate(
+                outputDir / "coordinate.raw",
+                IOstream::ASCII,
+                IOstream::currentVersion,
+                IOstream::UNCOMPRESSED);
+
+            // Header
+            osCoordinate << "Grid center point coordinates" << nl
+                         << "x "
+                         << "y "
+                         << "z" << endl;
+
+            forAll(centralPoint_, elementi)
+            {
+                point &pt = centralPoint_[elementi];
+                osCoordinate << pt.x() << " "
+                             << pt.y() << " "
+                             << pt.z() << endl;
+            }
         }
     }
 }
@@ -178,9 +204,6 @@ bool Foam::functionObjects::STDMD::getSnapshot()
         if (Pstream::master())
         {
             //  Gather vectorField from vectorFieldList
-            fileName outputDir = mesh_.time().path() / "Postprocessing";
-            mkDir(outputDir);
-
             const label nComps_ = nComponents(fieldName_);
 
             // Assign velocity to snapshots matrix x_
@@ -260,32 +283,23 @@ Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix &x, RMatrix &Q) const
 // Expand Q, G and A based on x
 void Foam::functionObjects::STDMD::expandQx(const RMatrix &ex_, const scalar exNorm_)
 {
-    Info << "Expand Qx" << endl;
     Qx.setSize(Qx.m(), Qx.n() + 1);
-    Info << "Expand Gx" << endl;
     Gx.setSize(Gx.m() + 1, Gx.n() + 1);
-    Info << "Expand A" << endl;
     A.setSize(A.m(), A.n() + 1);
 
     MatrixBlock<RMatrix> qxExpand(Qx, Qx.m(), 1, 0, Qx.n() - 1);
     qxExpand = ex_ / exNorm_;
-
-     Info<< "Expand X done"<<endl;
 }
 
 // Expand Q, G and A based on y
 void Foam::functionObjects::STDMD::expandQy(const RMatrix &ey_, const scalar eyNorm_)
 {
-    Info << "Expand Qy" << endl;
     Qy.setSize(Qy.m(), Qy.n() + 1);
-    Info << "Expand Gy" << endl;
     Gy.setSize(Gy.m() + 1, Gy.n() + 1);
-    Info << "Expand A" << endl;
     A.setSize(A.m() + 1, A.n());
 
-    MatrixBlock<RMatrix> qyExpand(Qy, Qy.m(), 1, 0, Qy.n());
+    MatrixBlock<RMatrix> qyExpand(Qy, Qy.m(), 1, 0, Qy.n() - 1);
     qyExpand = ey_ / eyNorm_;
-    Info << "Expand Y done" << endl;
 }
 
 // Calculate xtilde
@@ -315,8 +329,33 @@ Foam::functionObjects::STDMD::transpose(const RMatrix &A) const
             T(col_, row_) = A(row_, col_);
         }
     }
-
     return T;
+}
+
+// Write the specified matrix to postProcessing/SDMD
+void Foam::functionObjects::STDMD::writeMatrix(
+    const fileName &outputDir,
+    const RMatrix &A,
+    const fileName &matrixName) const
+{
+    if (!isDir(outputDir))
+    {
+        mkDir(outputDir);
+    }
+    OFstream os(
+        outputDir / matrixName + ".raw",
+        IOstream::ASCII,
+        IOstream::currentVersion,
+        IOstream::UNCOMPRESSED);
+
+    for (int row_ = 0; row_ < A.m(); row_++)
+    {
+        for (int col_ = 0; col_ < A.n(); col_++)
+        {
+            os << A(row_, col_) << " ";
+        }
+        os << endl;
+    }
 }
 
 // * * * * * * * * * Constructors  * * * * * * * * * * * * * //
@@ -387,8 +426,24 @@ bool Foam::functionObjects::STDMD::read(const dictionary &dict)
     return true;
 }
 
+// Write A, Gx, Gy, Qx, Qy to files
 bool Foam::functionObjects::STDMD::write()
 {
+    Info << "Execution step when write: " << step_ << endl;
+
+    if (step_ > 2)
+    {
+        Info << "Writing Matrix to postProcesiing" << endl;
+
+        fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+
+        writeMatrix(outputDir, A, "A");
+        writeMatrix(outputDir, Qx, "Qx");
+        writeMatrix(outputDir, Qy, "Qy");
+        writeMatrix(outputDir, Gx, "Gx");
+        writeMatrix(outputDir, Gy, "Gy");
+    }
+
     return true;
 }
 
@@ -422,13 +477,12 @@ bool Foam::functionObjects::STDMD::execute()
             if (Pstream::master())
             {
                 scalar normX_ = L2norm(x_);
-                Info << "Norm of x_: " << normX_ << endl;
                 scalar normY_ = L2norm(y_);
 
                 Qx = x_ / normX_;
                 Qy = y_ / normY_;
-                Gx(0, 0) = normX_*normX_;
-                Gy(0, 0) = normY_*normY_;
+                Gx(0, 0) = normX_ * normX_;
+                Gy(0, 0) = normY_ * normY_;
                 A(0, 0) = normX_ * normY_;
             }
         }
@@ -464,12 +518,12 @@ bool Foam::functionObjects::STDMD::execute()
 
             // Algorithm step 4
             // Calculate xtilde and ytilde
-            Info << "Caculate tilde" <<endl;
+            Info << "Caculate tilde" << endl;
             RMatrix xtilde_ = calcTilde(Qx, x_);
             RMatrix ytilde_ = calcTilde(Qy, y_);
 
             // Update A and Gx,Gy
-            Info << "Update A and Gx, Gy" <<endl;
+            Info << "Update A and Gx, Gy" << endl;
             A = A + ytilde_ * transpose(xtilde_);
             Gx = Gx + xtilde_ * transpose(xtilde_);
             Gy = Gy + ytilde_ * transpose(ytilde_);
