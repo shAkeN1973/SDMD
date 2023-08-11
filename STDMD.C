@@ -143,8 +143,6 @@ void Foam::functionObjects::STDMD::initialize()
             // Write the coordinates of central points
             fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
-            Info << "Mesh path is:" << outputDir << endl;
-
             mkDir(outputDir);
             OFstream osCoordinate(
                 outputDir / "coordinate.raw",
@@ -260,7 +258,6 @@ bool Foam::functionObjects::STDMD::getSnapshot()
 Foam::RectangularMatrix<double_t>
 Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix &x, RMatrix &Q) const
 {
-    Info << "The Colmns of Q: " << Q.n() << endl;
 
     RMatrix ex_ = x;
 
@@ -429,11 +426,10 @@ bool Foam::functionObjects::STDMD::read(const dictionary &dict)
 // Write A, Gx, Gy, Qx, Qy to files
 bool Foam::functionObjects::STDMD::write()
 {
-    Info << "Execution step when write: " << step_ << endl;
 
     if (step_ > 2)
     {
-        Info << "Writing Matrix to postProcesiing" << endl;
+        Info << "Writing Matrix to postProcessing" << endl;
 
         fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
@@ -500,7 +496,6 @@ bool Foam::functionObjects::STDMD::execute()
             // Algorithm step 2
             // Check basis for x_ and expand, if necessary
             scalar normX_ = L2norm(x_);
-            Info << "Norm of x_: " << normX_ << endl;
             scalar normY_ = L2norm(y_);
 
             if (normEx_ / normX_ > __DBL_EPSILON__)
