@@ -88,6 +88,8 @@ void Foam::functionObjects::STDMD::initialize()
     nCells_ = mesh_.nCells();
     reduce(nCells_, sumOp<label>());
 
+    outputDir_ = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+
     Log << "Number of elements in one Snapshots:" << nSnap_ << endl;
 
     // Get velocity field reference
@@ -141,11 +143,11 @@ void Foam::functionObjects::STDMD::initialize()
             }
 
             // Write the coordinates of central points
-            fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+            //fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
-            mkDir(outputDir);
+            mkDir(outputDir_);
             OFstream osCoordinate(
-                outputDir / "coordinate.raw",
+                outputDir_/ "coordinate.raw",
                 IOstream::ASCII,
                 IOstream::currentVersion,
                 IOstream::UNCOMPRESSED);
@@ -375,7 +377,8 @@ Foam::functionObjects::STDMD::STDMD(
       x_(),
       y_(),
       fieldName_(dict.lookupOrDefault<word>("field", "U")),
-      nGram_(5)
+      nGram_(5),
+      outputDir_()
 {
     // Read settings from dictionary files
     read(dict);
@@ -399,7 +402,8 @@ Foam::functionObjects::STDMD::STDMD(
       x_(),
       y_(),
       fieldName_(dict.lookupOrDefault<word>("field", "U")),
-      nGram_(5)
+      nGram_(5),
+      outputDir_()
 {
     // Read settings from dictionary files
     read(dict);
@@ -431,13 +435,13 @@ bool Foam::functionObjects::STDMD::write()
     {
         Info << "Writing Matrix to postProcessing" << endl;
 
-        fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+        //fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
-        writeMatrix(outputDir, A, "A");
-        writeMatrix(outputDir, Qx, "Qx");
-        writeMatrix(outputDir, Qy, "Qy");
-        writeMatrix(outputDir, Gx, "Gx");
-        writeMatrix(outputDir, Gy, "Gy");
+        writeMatrix(outputDir_, A, "A");
+        writeMatrix(outputDir_, Qx, "Qx");
+        writeMatrix(outputDir_, Qy, "Qy");
+        writeMatrix(outputDir_, Gx, "Gx");
+        writeMatrix(outputDir_, Gy, "Gy");
     }
 
     return true;
@@ -463,6 +467,8 @@ bool Foam::functionObjects::STDMD::execute()
         if (Pstream::master())
         {
             x_ = y_;
+            // Save snapshots x_1
+            writeMatrix(outputDir_,x_,"snapshots1");
         }
         getSnapshot();
 

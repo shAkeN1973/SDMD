@@ -113,8 +113,10 @@ namespace Foam
             // Number of times to reapply Gram-Schmidt
             const label nGram_;
 
+            //  Output path
+            fileName outputDir_;
+            
             // Private Member Functions
-
             // Number of the field components, e.g. pressure filed 1, Velocity field 3
             label nComponents(const word &fieldName);
 
