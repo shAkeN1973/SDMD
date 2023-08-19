@@ -90,7 +90,6 @@ void Foam::functionObjects::STDMD::initialize()
 
     outputDir_ = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
-    Log << "Number of elements in one Snapshots:" << nSnap_ << endl;
 
     // Get velocity field reference
     const volVectorField &field = lookupObject<volVectorField>(fieldName_);
@@ -101,13 +100,53 @@ void Foam::functionObjects::STDMD::initialize()
         List<pointField> listMeshCentre(Pstream::nProcs());
         listMeshCentre[Pstream::myProcNo()] = field.mesh().C();
         Pstream::gatherList(listMeshCentre);
-
-        Log << "Cells of total mesh cells: " << nCells_ << endl;
-
         centralPoint_ = pointField(nCells_, Zero);
 
         if (Pstream::master())
         {
+            label iMeshBlockLen = 0; // Length of each mesh block
+
+            // Initialize the coordinates of mesh points in centralPoint
+            for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
+            {
+                pointField &ct = listMeshCentre[iProc];
+                for (int iCell = 0; iCell < listMeshCentre[iProc].size(); iCell++)
+                {
+                    centralPoint_[iCell + iMeshBlockLen] = ct[iCell];
+                }
+                iMeshBlockLen += listMeshCentre[iProc].size();
+            }
+
+            // Check if process aera is limited
+            if (pointLocation_.size())
+            {
+                nCells_ = 0; // Resize the number of all meshs
+                double xMax = pointLocation_[0].x();
+                double yMax = pointLocation_[0].y();
+                double zMax = pointLocation_[0].z();
+
+                double xMin = pointLocation_[1].x();
+                double yMin = pointLocation_[1].y();
+                double zMin = pointLocation_[1].z();
+
+                pointField tempCentralPoint;
+                forAll(centralPoint_, iPoint)
+                {
+                    point &ct = centralPoint_[iPoint];
+                    if ((ct.x() <= xMax && ct.x() >= xMin) && (ct.y() <= yMax && ct.y() >= yMin) && (ct.z() <= zMax && ct.z() >= zMin))
+                    {
+                        nCells_++;
+                        pointIndexList_.append(iPoint);
+                        tempCentralPoint.append(ct);
+                    }
+                }
+                centralPoint_ = tempCentralPoint;
+                nSnap_ = nComps * nCells_;
+            }
+
+            Log << "Cells of total mesh cells: " << nCells_ << endl;
+            Log << "Number of elements in a snapshot:" << nSnap_ << endl;
+
             if (nSnap_ > 0)
             {
                 x_ = RMatrix(nSnap_, 1, Zero);
@@ -129,34 +168,13 @@ void Foam::functionObjects::STDMD::initialize()
                 A = RMatrix(1, 1, Zero);
             }
 
-            label iMeshBlockLen = 0; // Length of each mesh block
-
-            // Initialize the coordinates of mesh points in centralPoint
-            for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
-            {
-                pointField &ct = listMeshCentre[iProc];
-                for (int iCell = 0; iCell < listMeshCentre[iProc].size(); iCell++)
-                {
-                    centralPoint_[iCell + iMeshBlockLen] = ct[iCell];
-                }
-                iMeshBlockLen += listMeshCentre[iProc].size();
-            }
-
             // Write the coordinates of central points
-            //fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
-
             mkDir(outputDir_);
             OFstream osCoordinate(
-                outputDir_/ "coordinate.raw",
+                outputDir_ / "coordinate.raw",
                 IOstream::ASCII,
                 IOstream::currentVersion,
                 IOstream::UNCOMPRESSED);
-
-            // Header
-            osCoordinate << "Grid center point coordinates" << nl
-                         << "x "
-                         << "y "
-                         << "z" << endl;
 
             forAll(centralPoint_, elementi)
             {
@@ -185,13 +203,19 @@ Foam::label Foam::functionObjects::STDMD::nComponents(const word &fieldName)
 // Get snapshots from data field
 bool Foam::functionObjects::STDMD::getSnapshot()
 {
-
     const label nComps = nComponents(fieldName_);
     // typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
 
     // Get size of Vector field
     const volVectorField &field = lookupObject<volVectorField>(fieldName_);
     const label nField = field.size();
+
+    // Get the number of element  of mesh and one snapshot in original aera
+    label nSnapTotal = nComps * mesh_.nCells();
+    reduce(nSnapTotal, sumOp<label>());
+
+    label nCellsTotal = mesh_.nCells();
+    reduce(nCellsTotal, sumOp<label>());
 
     // Parallel process:
     if (Pstream::parRun())
@@ -201,55 +225,43 @@ bool Foam::functionObjects::STDMD::getSnapshot()
         listVectorField[Pstream::myProcNo()] = field.internalField();
         Pstream::gatherList(listVectorField);
 
+        Info << "Elements in original aera: " << nSnapTotal << endl;
+
         if (Pstream::master())
         {
             //  Gather vectorField from vectorFieldList
-            const label nComps_ = nComponents(fieldName_);
+            RMatrix tempY(nSnapTotal, 1, Zero);
 
             // Assign velocity to snapshots matrix x_
-            for (direction dir = 0; dir < nComps_; dir++)
+            for (direction dir = 0; dir < nComps; dir++)
             {
                 label mStart_ = 0;
                 for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
                 {
                     vectorField &UField = listVectorField[iProc];
                     const label iProcFieldSize_ = UField.size();
-                    MatrixBlock<RMatrix> v(y_, iProcFieldSize_, 1, mStart_ + dir * nCells_, 0);
+                    MatrixBlock<RMatrix> v(tempY, iProcFieldSize_, 1, mStart_ + dir * nCellsTotal, 0);
                     v = UField.component(dir);
                     mStart_ += UField.size();
                 }
             }
-        }
-        return true;
-    }
-    else // Non-Parallel processing
-    {
-        // Assignment the U vector to matrix x_
-        for (direction dir = 0; dir < 3; dir++)
-        {
-            MatrixBlock<RMatrix> v(y_, nField, 1, 0 + dir * nField, 0);
-            v = field.component(dir);
-        }
-
-        fileName outputDir = mesh_.time().path() / "Postprocessing";
-        mkDir(outputDir);
-
-        OFstream osNonParallel(
-            outputDir / "NonParallell_U_Mesh.raw",
-            IOstream::ASCII,
-            IOstream::currentVersion,
-            IOstream::UNCOMPRESSED);
-
-        pointField meshCentr = field.mesh().C();
-        vectorField Umesh = field.internalField();
-
-        // Write the central coordinate of each mesh cell as well as velocity component
-        for (int i = 0; i < field.mesh().nCells(); i++)
-        {
-            point &ct = meshCentr[i];
-            vector &Uv = Umesh[i];
-            osNonParallel << ct.x() << " " << ct.y() << " " << ct.z() << " "
-                          << Uv.x() << " " << Uv.y() << " " << Uv.z() << " " << nl;
+            // Limit aera process:
+            if (pointLocation_.size())
+            {
+                for (direction dir = 0; dir < nComps; dir++)
+                {
+                    for (int i = 0; i < pointIndexList_.size(); i++)
+                    {
+                        label index = pointIndexList_[i];
+                        y_(i + dir * nCells_, 0) = tempY(index + dir * nCells_, 0);
+                    }
+                }
+            }
+            else
+            {
+                y_ = tempY;
+            }
+            Info << "size point index list" << pointIndexList_.size() <<endl;
         }
         return true;
     }
@@ -408,21 +420,21 @@ Foam::functionObjects::STDMD::STDMD(
     // Read settings from dictionary files
     read(dict);
 }
-// * * * * * * * * * Destructor  * * * * * * * * * * * * * //
 
+// * * * * * * * * * Destructor  * * * * * * * * * * * * * //
 Foam::functionObjects::STDMD::~STDMD()
 {
 }
 
 // * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
-// mesh_ : refrence to fvMesh
-
 bool Foam::functionObjects::STDMD::read(const dictionary &dict)
 {
     fvMeshFunctionObject::read(dict);
 
-    Log << "This is type:" << type() << nl
-        << "this is name:" << name() << ":" << nl;
+    Log << "The type of post-processing:" << type() << endl;
+
+    // Read locations of two points to limit the aera
+    dict.lookup("pointLocations") >> pointLocation_;
 
     return true;
 }
@@ -435,7 +447,7 @@ bool Foam::functionObjects::STDMD::write()
     {
         Info << "Writing Matrix to postProcessing" << endl;
 
-        //fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+        // fileName outputDir = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
         writeMatrix(outputDir_, A, "A");
         writeMatrix(outputDir_, Qx, "Qx");
@@ -468,7 +480,8 @@ bool Foam::functionObjects::STDMD::execute()
         {
             x_ = y_;
             // Save snapshots x_1
-            writeMatrix(outputDir_,x_,"snapshots1");
+
+            writeMatrix(outputDir_, x_, "snapshots1");
         }
         getSnapshot();
 

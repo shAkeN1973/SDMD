@@ -24,14 +24,34 @@ License
 Application
     STDMD
 
+Class
+    Foam::functionObjects::SDMD.H
+
 Description
     A Streaming algorithm used for the function objects
 
     functions:
         - Performing the DMD to the new snapshots
+        - Limit the aera to perform SDMD
 
-Class
-    Foam::functionObjects::SDMD.H
+Usage 
+    Minimal example by using system/controlDict.functions:
+
+    SDMD
+    {
+        type            STDMD;
+        functionObjectLibs ("libSTDMD.so");
+        writeControl timeStep;
+        writeInterval 10;
+        // timeStart 1.9835;
+        // timeEnd 2.9850;
+        pointLoactions
+        (
+            (0 0 0)
+            (1 1 1)
+        )
+        nGramSchmidt 5;
+    }
 \*---------------------------------------------------------------------------*/
 
 #ifndef STDMD_H
@@ -65,7 +85,6 @@ namespace Foam
             // Private Data
 
             // Protected Data
-
             // Number of elements in a snapshot
             label nSnap_;
 
@@ -115,7 +134,13 @@ namespace Foam
 
             //  Output path
             fileName outputDir_;
-            
+
+            // Locations of points limiting the aera to perform SDMD
+            pointField pointLocation_;
+
+            // List of index point in limit aera
+            List<label> pointIndexList_;
+
             // Private Member Functions
             // Number of the field components, e.g. pressure filed 1, Velocity field 3
             label nComponents(const word &fieldName);
