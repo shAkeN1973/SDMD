@@ -77,204 +77,71 @@ Foam::scalar Foam::functionObjects::STDMD::L2norm(const RMatrix &z) const
     return max(SMALL, Foam::sqrt(result));
 }
 
+Foam::label Foam::functionObjects::STDMD::nComponents(const word &fieldName) const
+{
+    label nComps = 0;
+    bool processed = false;
+
+    processed = processed || nComponents<scalar>(fieldName, nComps);
+    processed = processed || nComponents<vector>(fieldName, nComps);
+    processed = processed || nComponents<tensor>(fieldName, nComps);
+
+    if (!processed)
+    {
+        FatalErrorInFunction
+            << "Unknown type of input field during initialisation: "
+            << fieldName << nl
+            << exit(FatalError);
+    }
+
+    return nComps;
+}
+
+// Create snapshots
+void Foam::functionObjects::STDMD::snapshot()
+{
+    bool processed = false;
+    // Check the type of the field
+    processed = processed || getSnapshot<scalar>();
+    processed = processed || getSnapshot<vector>();
+    processed = processed || getSnapshot<tensor>();
+
+    if (!processed)
+    {
+        FatalErrorInFunction
+            << "    functionObjects::" << type() << " " << name() << ":"
+            << " cannot find required input field during *[snapshot loading]*: "
+            << fieldName_ << nl
+            << "    Do you execute required functionObjects"
+            << " before executing SDMD, e.g. mapFields?"
+            << exit(FatalError);
+    }
+}
+
 void Foam::functionObjects::STDMD::initialize()
 {
-    const label nComps = nComponents(fieldName_);
-    Log << "Components is: " << nComps << endl;
+    bool processed = false;
 
-    nSnap_ = nComps * mesh_.nCells();
-    reduce(nSnap_, sumOp<label>());
+    // Check the type of the field
+    processed = processed || initializeSnap<scalar>();
+    processed = processed || initializeSnap<vector>();
+    processed = processed || initializeSnap<tensor>();
 
-    nCells_ = mesh_.nCells();
-    reduce(nCells_, sumOp<label>());
-
-    outputDir_ = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
-
-
-    // Get velocity field reference
-    const volVectorField &field = lookupObject<volVectorField>(fieldName_);
-
-    if (Pstream::parRun())
+    if (!processed)
     {
-        // Gather the central point together
-        List<pointField> listMeshCentre(Pstream::nProcs());
-        listMeshCentre[Pstream::myProcNo()] = field.mesh().C();
-        Pstream::gatherList(listMeshCentre);
-        centralPoint_ = pointField(nCells_, Zero);
-
-        if (Pstream::master())
-        {
-            label iMeshBlockLen = 0; // Length of each mesh block
-
-            // Initialize the coordinates of mesh points in centralPoint
-            for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
-            {
-                pointField &ct = listMeshCentre[iProc];
-                for (int iCell = 0; iCell < listMeshCentre[iProc].size(); iCell++)
-                {
-                    centralPoint_[iCell + iMeshBlockLen] = ct[iCell];
-                }
-                iMeshBlockLen += listMeshCentre[iProc].size();
-            }
-
-            // Check if process aera is limited
-            if (pointLocation_.size())
-            {
-                nCells_ = 0; // Resize the number of all meshs
-                double xMax = pointLocation_[0].x();
-                double yMax = pointLocation_[0].y();
-                double zMax = pointLocation_[0].z();
-
-                double xMin = pointLocation_[1].x();
-                double yMin = pointLocation_[1].y();
-                double zMin = pointLocation_[1].z();
-
-                pointField tempCentralPoint;
-                forAll(centralPoint_, iPoint)
-                {
-                    point &ct = centralPoint_[iPoint];
-                    if ((ct.x() <= xMax && ct.x() >= xMin) && (ct.y() <= yMax && ct.y() >= yMin) && (ct.z() <= zMax && ct.z() >= zMin))
-                    {
-                        nCells_++;
-                        pointIndexList_.append(iPoint);
-                        tempCentralPoint.append(ct);
-                    }
-                }
-                centralPoint_ = tempCentralPoint;
-                nSnap_ = nComps * nCells_;
-            }
-
-            Log << "Cells of total mesh cells: " << nCells_ << endl;
-            Log << "Number of elements in a snapshot:" << nSnap_ << endl;
-
-            if (nSnap_ > 0)
-            {
-                x_ = RMatrix(nSnap_, 1, Zero);
-                y_ = RMatrix(nSnap_, 1, Zero);
-                Qx = RMatrix(nSnap_, 1, Zero);
-                Qy = RMatrix(nSnap_, 1, Zero);
-                Gx = RMatrix(1, 1, Zero);
-                Gy = RMatrix(1, 1, Zero);
-                A = RMatrix(1, 1, Zero);
-            }
-            else
-            {
-                x_ = RMatrix(1, 1, Zero);
-                y_ = RMatrix(1, 1, Zero);
-                Qx = RMatrix(1, 1, Zero);
-                Qy = RMatrix(1, 1, Zero);
-                Gx = RMatrix(1, 1, Zero);
-                Gy = RMatrix(1, 1, Zero);
-                A = RMatrix(1, 1, Zero);
-            }
-
-            // Write the coordinates of central points
-            mkDir(outputDir_);
-            OFstream osCoordinate(
-                outputDir_ / "coordinate.raw",
-                IOstream::ASCII,
-                IOstream::currentVersion,
-                IOstream::UNCOMPRESSED);
-
-            forAll(centralPoint_, elementi)
-            {
-                point &pt = centralPoint_[elementi];
-                osCoordinate << pt.x() << " "
-                             << pt.y() << " "
-                             << pt.z() << endl;
-            }
-        }
+        FatalErrorInFunction
+            << "    functionObjects::" << type() << " " << name() << ":"
+            << " cannot find required input field during *[snapshot loading]*: "
+            << fieldName_ << nl
+            << exit(FatalError);
     }
-}
-
-// Returns the number of components in the seleted field
-Foam::label Foam::functionObjects::STDMD::nComponents(const word &fieldName)
-{
-    label nComps;
-    typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
-    if (mesh_.foundObject<VolFieldType>(fieldName))
-    {
-        nComps = pTraits<typename VolFieldType::value_type>::nComponents;
-        return nComps;
-    }
-    return 0;
-}
-
-// Get snapshots from data field
-bool Foam::functionObjects::STDMD::getSnapshot()
-{
-    const label nComps = nComponents(fieldName_);
-    // typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
-
-    // Get size of Vector field
-    const volVectorField &field = lookupObject<volVectorField>(fieldName_);
-    const label nField = field.size();
-
-    // Get the number of element  of mesh and one snapshot in original aera
-    label nSnapTotal = nComps * mesh_.nCells();
-    reduce(nSnapTotal, sumOp<label>());
-
-    label nCellsTotal = mesh_.nCells();
-    reduce(nCellsTotal, sumOp<label>());
-
-    // Parallel process:
-    if (Pstream::parRun())
-    {
-        // Gather list from openfoam field
-        List<vectorField> listVectorField(Pstream::nProcs());
-        listVectorField[Pstream::myProcNo()] = field.internalField();
-        Pstream::gatherList(listVectorField);
-
-        Info << "Elements in original aera: " << nSnapTotal << endl;
-
-        if (Pstream::master())
-        {
-            //  Gather vectorField from vectorFieldList
-            RMatrix tempY(nSnapTotal, 1, Zero);
-
-            // Assign velocity to snapshots matrix x_
-            for (direction dir = 0; dir < nComps; dir++)
-            {
-                label mStart_ = 0;
-                for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
-                {
-                    vectorField &UField = listVectorField[iProc];
-                    const label iProcFieldSize_ = UField.size();
-                    MatrixBlock<RMatrix> v(tempY, iProcFieldSize_, 1, mStart_ + dir * nCellsTotal, 0);
-                    v = UField.component(dir);
-                    mStart_ += UField.size();
-                }
-            }
-            // Limit aera process:
-            if (pointLocation_.size())
-            {
-                for (direction dir = 0; dir < nComps; dir++)
-                {
-                    for (int i = 0; i < pointIndexList_.size(); i++)
-                    {
-                        label index = pointIndexList_[i];
-                        y_(i + dir * nCells_, 0) = tempY(index + dir * nCells_, 0);
-                    }
-                }
-            }
-            else
-            {
-                y_ = tempY;
-            }
-            Info << "size point index list" << pointIndexList_.size() <<endl;
-        }
-        return true;
-    }
-    return false;
 }
 
 // Classical Gram-Schmidt reorthonormalization
 Foam::RectangularMatrix<double_t>
 Foam::functionObjects::STDMD::GSOrthonormalize(RMatrix &x, RMatrix &Q) const
 {
-
     RMatrix ex_ = x;
-
     for (int i = 0; i < nGram_; i++)
     {
         // dx = Q^T * ex;
@@ -430,7 +297,6 @@ Foam::functionObjects::STDMD::~STDMD()
 bool Foam::functionObjects::STDMD::read(const dictionary &dict)
 {
     fvMeshFunctionObject::read(dict);
-
     Log << "The type of post-processing:" << type() << endl;
 
     // Read locations of two points to limit the aera
@@ -461,29 +327,28 @@ bool Foam::functionObjects::STDMD::write()
 
 bool Foam::functionObjects::STDMD::execute()
 {
-    // Log information
-    Log << "execute Function is running" << endl;
+    //  Output relevant information about SDMD
+    Log << "Execute Function is running" << endl;
     Log << type() << " " << name() << " execute:" << endl;
 
     // SDMD is processed by the master processor
-
     Log << "Execution index:" << step_ << endl;
 
     if (step_ == 0)
     {
         initialize();
-        getSnapshot();
+        snapshot();
     }
     else
     {
         if (Pstream::master())
         {
             x_ = y_;
+            
             // Save snapshots x_1
-
             writeMatrix(outputDir_, x_, "snapshots1");
         }
-        getSnapshot();
+        snapshot();
 
         // Process the First Iterate
         if (step_ == 1)

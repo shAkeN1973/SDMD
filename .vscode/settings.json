@@ -33,6 +33,7 @@
         "string_view": "cpp",
         "initializer_list": "cpp",
         "utility": "cpp",
-        "limits": "cpp"
+        "limits": "cpp",
+        "SDMDTemplate.C": "cpp"
     }
 }

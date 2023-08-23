@@ -34,7 +34,7 @@ Description
         - Performing the DMD to the new snapshots
         - Limit the aera to perform SDMD
 
-Usage 
+Usage
     Minimal example by using system/controlDict.functions:
 
     SDMD
@@ -143,16 +143,29 @@ namespace Foam
 
             // Private Member Functions
             // Number of the field components, e.g. pressure filed 1, Velocity field 3
-            label nComponents(const word &fieldName);
+            // Return number of components of the base type of a given field
+            label nComponents(const word &fieldName) const;
+
+            // Get the number of components of the base type of a given field
+            template <class Type>
+            bool nComponents(const word &fieldName, label &nComps) const;
 
             // Return L2-norm of a given column vector
             scalar L2norm(const RMatrix &z) const;
 
+            // Create snapshots
+            void snapshot();
+
             // Get snapshot form the Volum field
+            template <class Type>
             bool getSnapshot();
 
             // Initialise the first snapshots
             void initialize();
+
+            // Initialise the first snapshots
+            template <class Type>
+            bool initializeSnap();
 
             // Classical Gram-Schmidt reorthonormalization
             RMatrix GSOrthonormalize(RMatrix &x, RMatrix &Q) const;
@@ -160,36 +173,32 @@ namespace Foam
             // Expand Qx, A, Gx
             void expandQx(const RMatrix &ex_, const scalar exNorm_);
 
-            // Expand Qy, A, Gy 
+            // Expand Qy, A, Gy
             void expandQy(const RMatrix &ey_, const scalar eyNorm_);
 
             // Calculate xtilde
             RMatrix calcTilde(RMatrix &Q, RMatrix &x) const;
 
-            // Return the transpose of the matrix 
+            // Return the transpose of the matrix
             RMatrix transpose(const RMatrix &A) const;
 
             // Write the specificed matrix to postProcessing/SDMD
-            void writeMatrix(const fileName &outputDir, const RMatrix &A,const fileName &matrixName) const;
+            void writeMatrix(const fileName &outputDir, const RMatrix &A, const fileName &matrixName) const;
 
         public:
             // Runtime type information
             TypeName("STDMD");
 
             // Constructors
-            STDMD
-            (
+            STDMD(
                 const word &name,
                 const Time &runTime,
-                const dictionary &dict
-            );
+                const dictionary &dict);
 
-            STDMD
-            (
+            STDMD(
                 const word &name,
                 const objectRegistry &obr,
-                const dictionary &dict
-            );
+                const dictionary &dict);
 
             // Destructor
             virtual ~STDMD();
@@ -205,5 +214,9 @@ namespace Foam
 
     } // End namespace functionObjects
 } // End namespace Foam
+
+#ifdef NoRepository
+#include "SDMDTemplate.C"
+#endif
 
 #endif
