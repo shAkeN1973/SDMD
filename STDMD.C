@@ -357,8 +357,7 @@ bool Foam::functionObjects::STDMD::execute()
             if (Pstream::master())
             {
                 scalar normX_ = L2norm(x_);
-                scalar normY_ = L2norm(y_);
-
+                scalar normY_ = L2norm(y_)
                 Qx = x_ / normX_;
                 Qy = y_ / normY_;
                 Gx(0, 0) = normX_ * normX_;
