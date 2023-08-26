@@ -344,9 +344,6 @@ bool Foam::functionObjects::STDMD::execute()
         if (Pstream::master())
         {
             x_ = y_;
-            
-            // Save snapshots x_1
-            writeMatrix(outputDir_, x_, "snapshots1");
         }
         snapshot();
 
@@ -356,10 +353,16 @@ bool Foam::functionObjects::STDMD::execute()
             Info << "=======Step 1=======" << endl;
             if (Pstream::master())
             {
+
+                // Save snapshots x_1
+                writeMatrix(outputDir_, x_, "snapshots1");
+                
                 scalar normX_ = L2norm(x_);
-                scalar normY_ = L2norm(y_)
+                scalar normY_ = L2norm(y_);
+
                 Qx = x_ / normX_;
                 Qy = y_ / normY_;
+
                 Gx(0, 0) = normX_ * normX_;
                 Gy(0, 0) = normY_ * normY_;
                 A(0, 0) = normX_ * normY_;

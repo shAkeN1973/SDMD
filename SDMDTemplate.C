@@ -207,15 +207,16 @@ bool Foam::functionObjects::STDMD::getSnapshot()
                         for (int i = 0; i < pointIndexList_.size(); i++)
                         {
                             label index = pointIndexList_[i];
-                            y_(i + dir * nCells_, 0) = tempY(index + dir * nCells_, 0);
+                            y_(i + dir * nCells_, 0) = tempY(index + dir * nCellsTotal, 0);
                         }
                     }
                 }
-                else
+                else 
                 {
                     y_ = tempY;
                 }
-                Info << "size point index list" << pointIndexList_.size() << endl;
+                Info << "size point index list: " << pointIndexList_.size() << endl;
+                Info << "size of resized mesh: " << nCells_<<endl;
             }
             return true;
         }
