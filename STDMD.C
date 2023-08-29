@@ -298,6 +298,8 @@ bool Foam::functionObjects::STDMD::read(const dictionary &dict)
 {
     fvMeshFunctionObject::read(dict);
     Log << "The type of post-processing:" << type() << endl;
+    Info << "The selected field: " << fieldName_ << endl;
+    
 
     // Read locations of two points to limit the aera
     dict.lookup("pointLocations") >> pointLocation_;
