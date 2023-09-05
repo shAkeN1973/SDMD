@@ -37,7 +37,7 @@ template <class Type>
 bool Foam::functionObjects::STDMD::initializeSnap()
 {
     typedef GeometricField<Type, fvPatchField, volMesh> volFieldType;
-    
+
     if (mesh_.foundObject<volFieldType>(fieldName_))
     {
         // Get velocity field reference
@@ -47,18 +47,54 @@ bool Foam::functionObjects::STDMD::initializeSnap()
         Log << "Components is: " << nComps << endl;
 
         nSnap_ = nComps * mesh_.nCells();
-        reduce(nSnap_, sumOp<label>());
-
         nCells_ = mesh_.nCells();
-        reduce(nCells_, sumOp<label>());
-
         outputDir_ = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
 
         if (Pstream::parRun())
         {
+            // Get coordinate of central point
+            pointField centralPointSlave_ = field.mesh().C();
+            Pout << "The size of unresized aera from core: "<<Pstream::myProcNo()<< " is: "
+            <<centralPointSlave_.size()<<endl;
+
+            // Check if process aera is limited
+            if (pointLocation_.size())
+            {
+                pointField tempCentralPointSlave;
+                nCells_ = 0; // Resize the number of all meshs
+
+                double xMax = pointLocation_[0].x();
+                double yMax = pointLocation_[0].y();
+                double zMax = pointLocation_[0].z();
+
+                double xMin = pointLocation_[1].x();
+                double yMin = pointLocation_[1].y();
+                double zMin = pointLocation_[1].z();
+
+                // pointField tempCentralPoint;
+                forAll(centralPointSlave_, iPoint)
+                {
+                    point &ct = centralPointSlave_[iPoint];
+                    if ((ct.x() <= xMax && ct.x() >= xMin) && (ct.y() <= yMax && ct.y() >= yMin) && (ct.z() <= zMax && ct.z() >= zMin))
+                    {
+                        nCells_++;
+                        pointIndexListSlave_.append(iPoint);
+                        tempCentralPointSlave.append(ct);
+                    }
+                }
+                centralPointSlave_ = tempCentralPointSlave;
+                nSnap_ = nComps * nCells_;
+
+            Pout << "The size of unresized aera from core: "<<Pstream::myProcNo()<< " is: "
+            <<centralPointSlave_.size()<<endl;
+            }
+            // Get the total number of cells and element in a snapshot
+            reduce(nSnap_, sumOp<label>());
+            reduce(nCells_, sumOp<label>());
+
             // Gather the central point together
             List<pointField> listMeshCentre(Pstream::nProcs());
-            listMeshCentre[Pstream::myProcNo()] = field.mesh().C();
+            listMeshCentre[Pstream::myProcNo()] = centralPointSlave_;
             Pstream::gatherList(listMeshCentre);
             centralPoint_ = pointField(nCells_, Zero);
 
@@ -74,33 +110,6 @@ bool Foam::functionObjects::STDMD::initializeSnap()
                         centralPoint_[iCell + iMeshBlockLen] = ct[iCell];
                     }
                     iMeshBlockLen += listMeshCentre[iProc].size();
-                }
-
-                // Check if process aera is limited
-                if (pointLocation_.size())
-                {
-                    nCells_ = 0; // Resize the number of all meshs
-                    double xMax = pointLocation_[0].x();
-                    double yMax = pointLocation_[0].y();
-                    double zMax = pointLocation_[0].z();
-
-                    double xMin = pointLocation_[1].x();
-                    double yMin = pointLocation_[1].y();
-                    double zMin = pointLocation_[1].z();
-
-                    pointField tempCentralPoint;
-                    forAll(centralPoint_, iPoint)
-                    {
-                        point &ct = centralPoint_[iPoint];
-                        if ((ct.x() <= xMax && ct.x() >= xMin) && (ct.y() <= yMax && ct.y() >= yMin) && (ct.z() <= zMax && ct.z() >= zMin))
-                        {
-                            nCells_++;
-                            pointIndexList_.append(iPoint);
-                            tempCentralPoint.append(ct);
-                        }
-                    }
-                    centralPoint_ = tempCentralPoint;
-                    nSnap_ = nComps * nCells_;
                 }
 
                 Log << "Cells of total mesh cells: " << nCells_ << endl;
@@ -129,11 +138,13 @@ bool Foam::functionObjects::STDMD::initializeSnap()
 
                 // Write the coordinates of central points
                 mkDir(outputDir_);
-                OFstream osCoordinate(
+                OFstream osCoordinate
+                (
                     outputDir_ / "coordinate.raw",
                     IOstream::ASCII,
                     IOstream::currentVersion,
-                    IOstream::UNCOMPRESSED);
+                    IOstream::UNCOMPRESSED
+                );
 
                 forAll(centralPoint_, elementi)
                 {
@@ -153,7 +164,7 @@ bool Foam::functionObjects::STDMD::initializeSnap()
 template <class Type>
 bool Foam::functionObjects::STDMD::getSnapshot()
 {
-    // typedef GeometricField<vector, fvPatchField, volMesh> VolFieldType;
+    /*
     typedef GeometricField<Type, fvPatchField, volMesh> volFieldType;
     typedef Field<Type> fieldType;
 
@@ -211,17 +222,17 @@ bool Foam::functionObjects::STDMD::getSnapshot()
                         }
                     }
                 }
-                else 
+                else
                 {
                     y_ = tempY;
                 }
                 Info << "size point index list: " << pointIndexList_.size() << endl;
-                Info << "size of resized mesh: " << nCells_<<endl;
+                Info << "size of resized mesh: " << nCells_ << endl;
             }
             return true;
         }
     }
-
+*/
     return false;
 }
 

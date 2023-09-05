@@ -82,9 +82,9 @@ namespace Foam
             typedef RectangularMatrix<double_t> RMatrix;
             typedef SquareMatrix<double_t> SMatrix;
 
-            // Private Data
+        // Private Data
 
-            // Protected Data
+            //===  MASTER CORE ===
             // Number of elements in a snapshot
             label nSnap_;
 
@@ -138,10 +138,13 @@ namespace Foam
             // Locations of points limiting the aera to perform SDMD
             pointField pointLocation_;
 
-            // List of index point in limit aera
-            List<label> pointIndexList_;
 
-            // Private Member Functions
+            // === ON CORE ===
+            // List of index point in limit aera
+            List<label> pointIndexListSlave_;
+            
+         // Private Member Functions
+
             // Number of the field components, e.g. pressure filed 1, Velocity field 3
             // Return number of components of the base type of a given field
             label nComponents(const word &fieldName) const;

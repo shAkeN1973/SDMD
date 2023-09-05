@@ -339,8 +339,9 @@ bool Foam::functionObjects::STDMD::execute()
     if (step_ == 0)
     {
         initialize();
-        snapshot();
+        //snapshot();
     }
+    /*
     else
     {
         if (Pstream::master())
@@ -411,7 +412,7 @@ bool Foam::functionObjects::STDMD::execute()
             Gx = Gx + xtilde_ * transpose(xtilde_);
             Gy = Gy + ytilde_ * transpose(ytilde_);
         }
-    }
+    }*/
     step_++;
     return true;
 }
