@@ -164,7 +164,7 @@ bool Foam::functionObjects::STDMD::initializeSnap()
 template <class Type>
 bool Foam::functionObjects::STDMD::getSnapshot()
 {
-    /*
+    
     typedef GeometricField<Type, fvPatchField, volMesh> volFieldType;
     typedef Field<Type> fieldType;
 
@@ -174,30 +174,42 @@ bool Foam::functionObjects::STDMD::getSnapshot()
 
         // Get size of Vector field
         const volFieldType &field = lookupObject<volFieldType>(fieldName_);
-        // const label nField = field.size();
-
-        // Get the number of element  of mesh and one snapshot in original aera
-        label nSnapTotal = nComps * mesh_.nCells();
-        reduce(nSnapTotal, sumOp<label>());
-
-        label nCellsTotal = mesh_.nCells();
-        reduce(nCellsTotal, sumOp<label>());
 
         // Parallel process:
         if (Pstream::parRun())
         {
+            Field<Type> dataFieldSlave_;
+
+            // Check if aera is limited
+            if(pointLocation_.size())
+            {
+                // Get data from field according to the index list 
+                for(int i=0; i < pointIndexListSlave_.size(); i++)
+                {
+                    label index = pointIndexListSlave_[i];
+                    dataFieldSlave_.append(field[index]);
+                }
+            }
+            else
+            {
+                dataFieldSlave_= field.internalField();
+            }
+
+            // ====Debug====
+            label fieldSize = dataFieldSlave_.size();
+            reduce(fieldSize,sumOp<label>());
+            Info << "The size of totoal field size is: " << fieldSize <<endl;
+            // ====Debug====
+
             // Gather list from openfoam field
             List<fieldType> listVectorField(Pstream::nProcs());
-            listVectorField[Pstream::myProcNo()] = field.internalField();
+            listVectorField[Pstream::myProcNo()] = dataFieldSlave_;
             Pstream::gatherList(listVectorField);
 
-            Info << "Elements in original aera: " << nSnapTotal << endl;
             if (Pstream::master())
             {
                 //  Gather vectorField from vectorFieldList
-                RMatrix tempY(nSnapTotal, 1, Zero);
-
-                // Assign velocity to snapshots matrix x_
+                // Assign velocity to snapshots matrix y_
                 for (direction dir = 0; dir < nComps; dir++)
                 {
                     label mStart_ = 0;
@@ -205,34 +217,16 @@ bool Foam::functionObjects::STDMD::getSnapshot()
                     {
                         fieldType &UField = listVectorField[iProc];
                         const label iProcFieldSize_ = UField.size();
-                        MatrixBlock<RMatrix> v(tempY, iProcFieldSize_, 1, mStart_ + dir * nCellsTotal, 0);
+                        MatrixBlock<RMatrix> v(y_, iProcFieldSize_, 1, mStart_ + dir * nCells_, 0);
                         v = UField.component(dir);
                         mStart_ += UField.size();
                     }
                 }
-                // Limit aera process:
-                if (pointLocation_.size())
-                {
-                    for (direction dir = 0; dir < nComps; dir++)
-                    {
-                        for (int i = 0; i < pointIndexList_.size(); i++)
-                        {
-                            label index = pointIndexList_[i];
-                            y_(i + dir * nCells_, 0) = tempY(index + dir * nCellsTotal, 0);
-                        }
-                    }
-                }
-                else
-                {
-                    y_ = tempY;
-                }
-                Info << "size point index list: " << pointIndexList_.size() << endl;
-                Info << "size of resized mesh: " << nCells_ << endl;
             }
             return true;
         }
     }
-*/
+
     return false;
 }
 
