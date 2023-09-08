@@ -54,8 +54,6 @@ bool Foam::functionObjects::STDMD::initializeSnap()
         {
             // Get coordinate of central point
             pointField centralPointSlave_ = field.mesh().C();
-            Pout << "The size of unresized aera from core: "<<Pstream::myProcNo()<< " is: "
-            <<centralPointSlave_.size()<<endl;
 
             // Check if process aera is limited
             if (pointLocation_.size())
@@ -84,9 +82,6 @@ bool Foam::functionObjects::STDMD::initializeSnap()
                 }
                 centralPointSlave_ = tempCentralPointSlave;
                 nSnap_ = nComps * nCells_;
-
-            Pout << "The size of unresized aera from core: "<<Pstream::myProcNo()<< " is: "
-            <<centralPointSlave_.size()<<endl;
             }
             // Get the total number of cells and element in a snapshot
             reduce(nSnap_, sumOp<label>());
