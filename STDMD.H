@@ -88,7 +88,7 @@ namespace Foam
             // Number of elements in a snapshot
             label nSnap_;
 
-            // Number of the snapshots
+            // Number of the snapshots, i.e. the number of steps
             label snapNum_;
 
             // Maximum allowable rank of DMD operator
@@ -99,11 +99,17 @@ namespace Foam
 
             // Q_x, whose columns form an orthonormal basis for the image of X
             // Eq: (1)
-            RMatrix Qx;
+          // RMatrix Qx;
 
             // Q_y, whose columns form an orthonormal basis for the image of Y
             // Eq: (1)
-            RMatrix Qy;
+           // RMatrix Qy;
+
+            // The number of columns of Qx
+            label QxCol_;
+
+            // The number of columns of Qy
+            label QyCol_;
 
             // A, New matrix defined
             RMatrix A;
@@ -138,6 +144,12 @@ namespace Foam
             // Locations of points limiting the aera to perform SDMD
             pointField pointLocation_;
 
+            // Path of Qx
+            string filePathQx;
+
+            // Path of Qy
+            string filePathQy;
+
 
             // === ON CORE ===
             // List of index point in limit aera
@@ -171,7 +183,7 @@ namespace Foam
             bool initializeSnap();
 
             // Classical Gram-Schmidt reorthonormalization
-            RMatrix GSOrthonormalize(RMatrix &x, RMatrix &Q) const;
+            RMatrix GSOrthonormalize(RMatrix &x, string filePath) const;
 
             // Expand Qx, A, Gx
             void expandQx(const RMatrix &ex_, const scalar exNorm_);
@@ -187,6 +199,12 @@ namespace Foam
 
             // Write the specificed matrix to postProcessing/SDMD
             void writeMatrix(const fileName &outputDir, const RMatrix &A, const fileName &matrixName) const;
+
+            // Perform Q^T*x or Q*x according to the cols of vector x
+            RMatrix vectorMatrixMulti(const RMatrix &x, string filePath, const label QCol) const;
+
+            // Add  vector to Qx and Qy
+            void addCol(const RMatrix &x, string filePath) const;
 
         public:
             // Runtime type information

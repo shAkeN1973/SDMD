@@ -49,6 +49,8 @@ bool Foam::functionObjects::STDMD::initializeSnap()
         nSnap_ = nComps * mesh_.nCells();
         nCells_ = mesh_.nCells();
         outputDir_ = mesh_.time().path() / ".." / "postProcessing" / "SDMD";
+        filePathQx = outputDir_+ "/Qx.raw";
+        filePathQy = outputDir_ + "/Qy.raw";
 
         if (Pstream::parRun())
         {
@@ -114,8 +116,8 @@ bool Foam::functionObjects::STDMD::initializeSnap()
                 {
                     x_ = RMatrix(nSnap_, 1, Zero);
                     y_ = RMatrix(nSnap_, 1, Zero);
-                    Qx = RMatrix(nSnap_, 1, Zero);
-                    Qy = RMatrix(nSnap_, 1, Zero);
+                    // Qx = RMatrix(nSnap_, 1, Zero);
+                    // Qy = RMatrix(nSnap_, 1, Zero);
                     Gx = RMatrix(1, 1, Zero);
                     Gy = RMatrix(1, 1, Zero);
                     A = RMatrix(1, 1, Zero);
@@ -124,8 +126,8 @@ bool Foam::functionObjects::STDMD::initializeSnap()
                 {
                     x_ = RMatrix(1, 1, Zero);
                     y_ = RMatrix(1, 1, Zero);
-                    Qx = RMatrix(1, 1, Zero);
-                    Qy = RMatrix(1, 1, Zero);
+                    // Qx = RMatrix(1, 1, Zero);
+                    // Qy = RMatrix(1, 1, Zero);
                     Gx = RMatrix(1, 1, Zero);
                     Gy = RMatrix(1, 1, Zero);
                     A = RMatrix(1, 1, Zero);
@@ -133,13 +135,11 @@ bool Foam::functionObjects::STDMD::initializeSnap()
 
                 // Write the coordinates of central points
                 mkDir(outputDir_);
-                OFstream osCoordinate
-                (
+                OFstream osCoordinate(
                     outputDir_ / "coordinate.raw",
                     IOstream::ASCII,
                     IOstream::currentVersion,
-                    IOstream::UNCOMPRESSED
-                );
+                    IOstream::UNCOMPRESSED);
 
                 forAll(centralPoint_, elementi)
                 {
@@ -159,7 +159,7 @@ bool Foam::functionObjects::STDMD::initializeSnap()
 template <class Type>
 bool Foam::functionObjects::STDMD::getSnapshot()
 {
-    
+
     typedef GeometricField<Type, fvPatchField, volMesh> volFieldType;
     typedef Field<Type> fieldType;
 
@@ -176,10 +176,10 @@ bool Foam::functionObjects::STDMD::getSnapshot()
             Field<Type> dataFieldSlave_;
 
             // Check if aera is limited
-            if(pointLocation_.size())
+            if (pointLocation_.size())
             {
-                // Get data from field according to the index list 
-                for(int i=0; i < pointIndexListSlave_.size(); i++)
+                // Get data from field according to the index list
+                for (int i = 0; i < pointIndexListSlave_.size(); i++)
                 {
                     label index = pointIndexListSlave_[i];
                     dataFieldSlave_.append(field[index]);
@@ -187,13 +187,15 @@ bool Foam::functionObjects::STDMD::getSnapshot()
             }
             else
             {
-                dataFieldSlave_= field.internalField();
+                dataFieldSlave_ = field.internalField();
             }
-
+           
             // ====Debug====
+            Pout << "Tht size of field in core: " << Pstream::myProcNo() << "is: " << dataFieldSlave_.size() << endl;
             label fieldSize = dataFieldSlave_.size();
-            reduce(fieldSize,sumOp<label>());
-            Info << "The size of totoal field size is: " << fieldSize <<endl;
+            reduce(fieldSize, sumOp<label>());
+            Info << "The size of totoal field size is: " << fieldSize << endl;
+            
             // ====Debug====
 
             // Gather list from openfoam field
