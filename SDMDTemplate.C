@@ -93,10 +93,11 @@ bool Foam::functionObjects::STDMD::initializeSnap()
             List<pointField> listMeshCentre(Pstream::nProcs());
             listMeshCentre[Pstream::myProcNo()] = centralPointSlave_;
             Pstream::gatherList(listMeshCentre);
-            centralPoint_ = pointField(nCells_, Zero);
+            Pout << "Tht size of field in core: " << Pstream::myProcNo() << "is: " << centralPointSlave_.size() << endl;
 
             if (Pstream::master())
             {
+                centralPoint_ = pointField(nCells_, Zero);
                 label iMeshBlockLen = 0; // Length of each mesh block
                 // Initialize the coordinates of mesh points in centralPoint
                 for (int iProc = 0; iProc < Pstream::nProcs(); iProc++)
@@ -191,11 +192,9 @@ bool Foam::functionObjects::STDMD::getSnapshot()
             }
            
             // ====Debug====
-            Pout << "Tht size of field in core: " << Pstream::myProcNo() << "is: " << dataFieldSlave_.size() << endl;
             label fieldSize = dataFieldSlave_.size();
             reduce(fieldSize, sumOp<label>());
             Info << "The size of totoal field size is: " << fieldSize << endl;
-            
             // ====Debug====
 
             // Gather list from openfoam field

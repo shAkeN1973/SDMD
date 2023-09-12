@@ -446,12 +446,15 @@ bool Foam::functionObjects::STDMD::execute()
         {
             // Algorithm step 1
             // i.e. Gram-Schmidt reothonormalization
+            Info << "Gram-Schmidt reothonormalization" << endl;
+            Info << "The time start before G-S for x: "<< time_.elapsedCpuTime() << endl;
             RMatrix ex_ = GSOrthonormalize(x_, filePathQx);
             scalar normEx_ = L2norm(ex_);
+            Info << "The time start before G-S  for x: "<< time_.elapsedCpuTime() << endl;
 
             RMatrix ey_ = GSOrthonormalize(y_, filePathQy);
             scalar normEy_ = L2norm(ey_);
-
+            
             // Algorithm step 2
             // Check basis for x_ and expand, if necessary
             scalar normX_ = L2norm(x_);
@@ -479,8 +482,8 @@ bool Foam::functionObjects::STDMD::execute()
             Info << "Caculate tilde" << endl;
             RMatrix xtilde_ = vectorMatrixMulti(x_, filePathQx, QxCol_);
             RMatrix ytilde_ = vectorMatrixMulti(y_, filePathQy, QyCol_);
-            Info << "The size of xtilde is: " << xtilde_.m()<<endl;
-            Info << "The size of ytilde is: " << ytilde_.m()<<endl;
+            Info << "The size of xtilde is: " << xtilde_.m() << endl;
+            Info << "The size of ytilde is: " << ytilde_.m() << endl;
             // RMatrix xtilde_ = calcTilde(Qx, x_);
             // RMatrix ytilde_ = calcTilde(Qy, y_);
 
