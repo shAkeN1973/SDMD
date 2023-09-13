@@ -239,9 +239,28 @@ Foam::RectangularMatrix<double_t>
 Foam::functionObjects::STDMD::vectorMatrixMulti(const RMatrix &x, string filePath, const label QCol) const
 {
     // Assume that the size of matrix Qx is: m*n
+    std::ios::sync_with_stdio(false); // close the sync with stdio
+
+    // ============= Timer ================
+    // double TIMER = time_.elapsedCpuTime();
+    // ============= Timer ================
+
+    // Get the first line of the Qx file
+    std::fstream bufferSizeGet;
+    bufferSizeGet.open(filePath, std::ios::in);
+    string s;
+    getline(bufferSizeGet, s);
+    // Info << "The size of first line of Qx (string) is: " << s.size() << endl;
+    label buffSize = s.size() * 2; // buffer at least 2 times bigger
+    bufferSizeGet.close();
+
+    // ============= Timer ================
+    // TIMER = time_.elapsedCpuTime() - TIMER;
+    // Info << "The time cost by get the first line size is: " << TIMER << "s" <<endl;
+    // ============= Timer ================
+
     label xSize = x.m();
     RMatrix dx_;
-
     if (xSize == nSnap_)
     {
         dx_ = RMatrix(QCol, 1, Zero);
@@ -251,17 +270,24 @@ Foam::functionObjects::STDMD::vectorMatrixMulti(const RMatrix &x, string filePat
         dx_ = RMatrix(nSnap_, 1, Zero);
     }
 
-    std::fstream fileWrite;
-    fileWrite.open(filePath, std::ios::in);
-
     // Perform the Q^t*x;
-    string s;
+    const char *PATH = filePath.c_str();
+
+    FILE *p = fopen(PATH, "rb");
+    char *buff = new char[buffSize];
+    memset(buff, 0, buffSize);
+
     int i = 0; // Colunm counter
-    while (getline(fileWrite, s))
+    int j = 0;
+
+    // ============= Timer ================
+    // TIMER = time_.elapsedCpuTime();
+    // ============= Timer ================
+    while (fgets(buff, buffSize, p) != NULL)
     {
-        std::istringstream sa(s);
-        int j = 0; // Row counter
-        while (!sa.eof())
+        std::istringstream sa(buff);
+        j = 0;
+        while (!sa.eof() && sa.peek() != '\n')
         {
             double_t Q_ij;
             sa >> Q_ij;
@@ -279,23 +305,39 @@ Foam::functionObjects::STDMD::vectorMatrixMulti(const RMatrix &x, string filePat
         {
             FatalErrorInFunction
                 << " functionObjects::" << type() << " " << name() << ":"
-                << " The rows of stored file Q_ is not consist with the number of element in a snapshot:"
+                << " The rows of stored file Q_ is not consist with the number of element in a snapshot:" << nl
                 << " The rows read by fstream: " << j << nl
                 << " The number of element in a snapshot: " << nSnap_ << nl
                 << exit(FatalError);
         }
-        s.clear();
         i++;
+        memset(buff, 0, buffSize);
     }
-    // Info << "Col of file Q is: " << i << endl;
-    // Info << "The record of Q is: " << QxCol_ <<endl;
-    fileWrite.close();
+
+    if (i != QxCol_)
+    {
+        FatalErrorInFunction
+            << " functionObjects::" << type() << " " << name() << ":"
+            << " The cols of stored file Q_ is not consist with the :" << nl
+            << " The cols read by fstream is: " << i << nl
+            << " The cols of Qx_ is: " << QxCol_ << nl
+            << exit(FatalError);
+    }
+
+    fclose(p);
+    delete[] buff;
+    // ============= Timer ================
+    // TIMER = time_.elapsedCpuTime() - TIMER;
+    // ============= Timer ================
+
+    // Info << "The time cost by the Mulipul process is: " << TIMER << endl;
     return dx_;
 }
 
 //  Add vector to Qx and Qy
 void Foam::functionObjects::STDMD::addCol(const RMatrix &x, string filePath) const
 {
+    std::ios::sync_with_stdio(false);
     ofstream fileWrite;
     fileWrite.open(filePath, std::ios::app);
     label endOF = x.m() - 1;
@@ -447,14 +489,20 @@ bool Foam::functionObjects::STDMD::execute()
             // Algorithm step 1
             // i.e. Gram-Schmidt reothonormalization
             Info << "Gram-Schmidt reothonormalization" << endl;
-            Info << "The time start before G-S for x: "<< time_.elapsedCpuTime() << endl;
+            // =====================Timer===========================
+            double TIMER = time_.elapsedCpuTime();
+            // =====================Timer===========================
             RMatrix ex_ = GSOrthonormalize(x_, filePathQx);
             scalar normEx_ = L2norm(ex_);
-            Info << "The time start before G-S  for x: "<< time_.elapsedCpuTime() << endl;
+
+            // =====================Timer===========================
+            TIMER = time_.elapsedCpuTime() - TIMER;
+            // =====================Timer===========================
+            Info << "The time start after G-S for x: " << TIMER << endl;
 
             RMatrix ey_ = GSOrthonormalize(y_, filePathQy);
             scalar normEy_ = L2norm(ey_);
-            
+
             // Algorithm step 2
             // Check basis for x_ and expand, if necessary
             scalar normX_ = L2norm(x_);
@@ -484,8 +532,6 @@ bool Foam::functionObjects::STDMD::execute()
             RMatrix ytilde_ = vectorMatrixMulti(y_, filePathQy, QyCol_);
             Info << "The size of xtilde is: " << xtilde_.m() << endl;
             Info << "The size of ytilde is: " << ytilde_.m() << endl;
-            // RMatrix xtilde_ = calcTilde(Qx, x_);
-            // RMatrix ytilde_ = calcTilde(Qy, y_);
 
             // Update A and Gx,Gy
             Info << "Update A and Gx, Gy" << endl;

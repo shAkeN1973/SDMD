@@ -93,7 +93,7 @@ bool Foam::functionObjects::STDMD::initializeSnap()
             List<pointField> listMeshCentre(Pstream::nProcs());
             listMeshCentre[Pstream::myProcNo()] = centralPointSlave_;
             Pstream::gatherList(listMeshCentre);
-            Pout << "Tht size of field in core: " << Pstream::myProcNo() << "is: " << centralPointSlave_.size() << endl;
+            Pout << "Tht size of field in core: " << Pstream::myProcNo() << " is: " << centralPointSlave_.size() << endl;
 
             if (Pstream::master())
             {
